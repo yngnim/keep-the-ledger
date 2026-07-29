@@ -35,6 +35,7 @@ test("server-renders the focused Korean game launcher", async () => {
   assert.match(html, /연대기 모드/);
   assert.match(html, /커스텀 게임/);
   assert.match(html, /연대기 트랙/);
+  assert.match(html, /룰북/);
   assert.doesNotMatch(html, /영웅은 몰라도|현재 습격|desktop-rail/);
   assert.doesNotMatch(html, /Your site is taking shape|react-loading-skeleton/i);
 });
@@ -46,21 +47,29 @@ test("ships the real token model, persistence, rulebooks, and static export", as
     readFile(new URL("../out/index.html", import.meta.url), "utf8"),
   ]);
 
+  assert.match(page, /keep-the-ledger:v3/);
   assert.match(page, /keep-the-ledger:v2/);
   assert.match(page, /keep-the-ledger:v1/);
   assert.match(page, /window\.localStorage\.setItem/);
   assert.match(page, /navigator\.serviceWorker/);
   assert.match(page, /player-rulebook\.pdf/);
-  assert.match(page, /dungeon-book\.pdf/);
+  assert.doesNotMatch(page, /dungeon-book\.pdf/);
+  assert.match(page, /StagePageDialog/);
   assert.match(page, /freshHeroTokens/);
   assert.match(page, /heroTokens/);
   assert.match(page, /eventTokens/);
+  assert.match(page, /웨이브 2 시작 · 초기화/);
+  assert.match(page, /assets\/icons\/event\.png/);
   assert.match(page, /noviceCards:\s*4/);
   assert.match(page, /noviceCards:\s*8/);
   assert.match(page, /noviceCards:\s*12/);
   assert.match(page, /침입 토큰/);
   assert.match(data, /stageIds:\s*\[1,\s*4,\s*13,\s*15\]/);
   assert.match(data, /stageIds:\s*\[3,\s*9,\s*19,\s*20\]/);
+  assert.match(data, /1:\s*\[\{ label: "마녀", count: 2 \}\]/);
+  assert.match(data, /2:\s*\[\{ label: "처형인", count: 4 \}\]/);
+  assert.match(data, /\{ label: "마녀 집회", count: 4 \}/);
+  assert.match(data, /20:\s*\[\]/);
   assert.match(exportedHtml, /Keep the Ledger/);
 
   await Promise.all([
@@ -72,6 +81,7 @@ test("ships the real token model, persistence, rulebooks, and static export", as
     access(new URL("../out/assets/heroes/archer.png", import.meta.url)),
     access(new URL("../out/assets/heroes/mage.png", import.meta.url)),
     access(new URL("../out/assets/heroes/novice.png", import.meta.url)),
+    access(new URL("../out/assets/icons/event.png", import.meta.url)),
     access(new URL("../out/manifest.webmanifest", import.meta.url)),
     access(new URL("../out/sw.js", import.meta.url)),
   ]);

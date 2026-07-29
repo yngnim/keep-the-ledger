@@ -6,12 +6,13 @@ import {
   chronologicalStages,
   rulebookSections,
   stageById,
+  stageEventCards,
   stages,
   type Chapter,
   type Stage,
 } from "./data";
 
-type Screen = "home" | "start" | "select" | "setup" | "play";
+type Screen = "home" | "select" | "setup" | "play";
 type GameMode = "chronicle" | "custom";
 type Difficulty = "beginner" | "challenger" | "expert";
 type HeroKey = "rogue" | "archer" | "mage" | "warrior";
@@ -30,12 +31,14 @@ type AppState = {
   heroTokens: HeroTokenState;
   eventTokens: boolean[];
   noviceTokens: boolean[];
+  wave: 1 | 2;
   notes: string;
   updatedAt: string;
 };
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
-const STORAGE_KEY = "keep-the-ledger:v2";
+const STORAGE_KEY = "keep-the-ledger:v3";
+const PREVIOUS_STORAGE_KEY = "keep-the-ledger:v2";
 const LEGACY_STORAGE_KEY = "keep-the-ledger:v1";
 
 const roomTokens: Array<{
@@ -135,6 +138,7 @@ const defaultState: AppState = {
   heroTokens: freshHeroTokens(),
   eventTokens: [],
   noviceTokens: [],
+  wave: 1,
   notes: "",
   updatedAt: new Date(0).toISOString(),
 };
@@ -148,7 +152,10 @@ function nextChronicleStage(completions: CompletionMap) {
 }
 
 function eventCardCount(stage: Stage) {
-  return stage.rules.filter((rule) => rule.kind === "이벤트").length;
+  return (stageEventCards[stage.id] ?? []).reduce(
+    (total, card) => total + card.count,
+    0,
+  );
 }
 
 function migrateStoredState(value: unknown): AppState {
@@ -157,6 +164,18 @@ function migrateStoredState(value: unknown): AppState {
     currentStageId?: number;
     results?: Record<number, "win" | "loss" | null>;
   };
+  const storedScreen = (parsed as { screen?: string }).screen;
+  const stageId = parsed.stageId ?? parsed.currentStageId ?? 1;
+  const expectedEventCount = eventCardCount(stageById[stageId] ?? stageById[1]);
+  const screen: Screen =
+    storedScreen === "start"
+      ? "setup"
+      : storedScreen === "home" ||
+          storedScreen === "select" ||
+          storedScreen === "setup" ||
+          storedScreen === "play"
+        ? storedScreen
+        : "home";
   const legacyCompletions = Object.fromEntries(
     Object.entries(parsed.results ?? {})
       .filter(([, result]) => result === "win")
@@ -166,11 +185,16 @@ function migrateStoredState(value: unknown): AppState {
   return {
     ...defaultState,
     ...parsed,
-    stageId: parsed.stageId ?? parsed.currentStageId ?? 1,
+    screen,
+    stageId,
     completions: { ...legacyCompletions, ...parsed.completions },
     heroTokens: parsed.heroTokens ?? freshHeroTokens(),
-    eventTokens: parsed.eventTokens ?? [],
+    eventTokens:
+      parsed.eventTokens?.length === expectedEventCount
+        ? parsed.eventTokens
+        : Array.from({ length: expectedEventCount }, () => true),
     noviceTokens: parsed.noviceTokens ?? [],
+    wave: parsed.wave === 2 ? 2 : 1,
   };
 }
 
@@ -221,12 +245,10 @@ function GameConfig({
   state,
   onDifficulty,
   onNovices,
-  onContinue,
 }: {
   state: AppState;
   onDifficulty: (difficulty: Difficulty) => void;
   onNovices: (enabled: boolean) => void;
-  onContinue: () => void;
 }) {
   return (
     <section className="config-panel">
@@ -272,11 +294,6 @@ function GameConfig({
           </small>
         </div>
       </label>
-
-      <button className="primary-action" type="button" onClick={onContinue}>
-        던전 세팅으로
-        <span>→</span>
-      </button>
     </section>
   );
 }
@@ -361,11 +378,17 @@ function ChronicleTrack({
               <button
                 className={`reward-access ${chapterComplete ? "unlocked" : ""}`}
                 type="button"
-                onClick={() => onReward(chapter)}
+                onClick={() => chapterComplete && onReward(chapter)}
+                disabled={!chapterComplete}
+                aria-label={
+                  chapterComplete
+                    ? `해금됨 ${chapter.reward} 보기`
+                    : `${chapter.title} 해금 능력 잠김`
+                }
               >
                 <small>{chapterComplete ? "해금됨" : "해금 능력"}</small>
-                <strong>{chapter.reward}</strong>
-                <span>보기</span>
+                <strong>{chapterComplete ? chapter.reward : "???"}</strong>
+                <span>{chapterComplete ? "보기" : "잠김"}</span>
               </button>
             </article>
           );
@@ -431,52 +454,13 @@ function HomeScreen({
   );
 }
 
-function StartScreen({
-  state,
-  onDifficulty,
-  onNovices,
-  onContinue,
-}: {
-  state: AppState;
-  onDifficulty: (difficulty: Difficulty) => void;
-  onNovices: (enabled: boolean) => void;
-  onContinue: () => void;
-}) {
-  const stage = stageById[state.stageId];
-  const position =
-    chronologicalStages.findIndex((item) => item.id === stage.id) + 1;
-
-  return (
-    <main className="flow-page">
-      <FlowSteps mode={state.mode} screen={state.screen} />
-      <section className="selection-summary">
-        <div>
-          <small>다음 시나리오 · 연대기 {position}/20</small>
-          <StageIdentity stage={stage} />
-        </div>
-        <p>{stage.story}</p>
-      </section>
-      <GameConfig
-        state={state}
-        onDifficulty={onDifficulty}
-        onNovices={onNovices}
-        onContinue={onContinue}
-      />
-    </main>
-  );
-}
-
 function SelectScreen({
   state,
   onStage,
-  onDifficulty,
-  onNovices,
   onContinue,
 }: {
   state: AppState;
   onStage: (stageId: number) => void;
-  onDifficulty: (difficulty: Difficulty) => void;
-  onNovices: (enabled: boolean) => void;
   onContinue: () => void;
 }) {
   return (
@@ -506,27 +490,38 @@ function SelectScreen({
           ))}
         </div>
       </section>
-      <GameConfig
-        state={state}
-        onDifficulty={onDifficulty}
-        onNovices={onNovices}
-        onContinue={onContinue}
-      />
+      <div className="flow-footer">
+        <button className="primary-action" type="button" onClick={onContinue}>
+          던전 세팅으로
+          <span>→</span>
+        </button>
+      </div>
     </main>
   );
 }
 
 function SetupScreen({
   state,
+  resuming,
+  onDifficulty,
+  onNovices,
   onCheck,
+  onBooklet,
   onPlay,
 }: {
   state: AppState;
+  resuming: boolean;
+  onDifficulty: (difficulty: Difficulty) => void;
+  onNovices: (enabled: boolean) => void;
   onCheck: (index: number) => void;
+  onBooklet: () => void;
   onPlay: () => void;
 }) {
   const stage = stageById[state.stageId];
   const checked = state.checklist[stage.id] ?? stage.setup.map(() => false);
+  const pageImage = asset(
+    `/assets/dungeon-pages/stage-${String(stage.page).padStart(2, "0")}.jpg`,
+  );
 
   return (
     <main className="flow-page">
@@ -543,6 +538,12 @@ function SetupScreen({
           {stage.clanBan && <span>선택 불가: {stage.clanBan}</span>}
         </div>
       </section>
+
+      <GameConfig
+        state={state}
+        onDifficulty={onDifficulty}
+        onNovices={onNovices}
+      />
 
       <div className="setup-layout">
         <div className="setup-main">
@@ -599,33 +600,22 @@ function SetupScreen({
 
         <aside className="booklet-card">
           <img
-            src={asset(
-              `/assets/dungeon-pages/stage-${String(stage.page).padStart(
-                2,
-                "0",
-              )}.jpg`,
-            )}
+            src={pageImage}
             alt={`${stage.title} 던전 책자 ${stage.page}쪽`}
           />
           <div>
             <small>던전 책자</small>
             <strong>{stage.page}쪽</strong>
-            <a
-              href={`${asset("/rulebooks/dungeon-book.pdf")}#page=${
-                stage.page
-              }&view=FitH`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              크게 보기 ↗
-            </a>
+            <button type="button" onClick={onBooklet}>
+              이미지 크게 보기
+            </button>
           </div>
         </aside>
       </div>
 
       <div className="flow-footer">
         <button className="primary-action" type="button" onClick={onPlay}>
-          플레이 시작
+          {resuming ? "플레이 계속" : "플레이 시작"}
           <span>→</span>
         </button>
       </div>
@@ -638,6 +628,8 @@ function PlayScreen({
   onHeroToken,
   onEventToken,
   onNoviceToken,
+  onWaveReset,
+  onBooklet,
   onNotes,
   onFail,
   onClear,
@@ -646,6 +638,8 @@ function PlayScreen({
   onHeroToken: (hero: HeroKey, token: RoomTokenKey) => void;
   onEventToken: (index: number) => void;
   onNoviceToken: (index: number) => void;
+  onWaveReset: () => void;
+  onBooklet: () => void;
   onNotes: (notes: string) => void;
   onFail: () => void;
   onClear: () => void;
@@ -669,15 +663,9 @@ function PlayScreen({
             <small>STAGE RULES</small>
             <h2>기믹</h2>
           </div>
-          <a
-            href={`${asset("/rulebooks/dungeon-book.pdf")}#page=${
-              stage.page
-            }&view=FitH`}
-            target="_blank"
-            rel="noreferrer"
-          >
-            책자 {stage.page}쪽 ↗
-          </a>
+          <button type="button" onClick={onBooklet}>
+            책자 {stage.page}쪽
+          </button>
         </div>
         <div className="play-rules">
           {stage.rules.map((rule) => (
@@ -698,8 +686,18 @@ function PlayScreen({
             <small>UNDERGROUND MARKET</small>
             <h2>침입 토큰</h2>
           </div>
-          <p>공개한 카드와 일치하는 토큰을 누르세요.</p>
+          <div className="wave-controls">
+            <span>웨이브 {state.wave}</span>
+            <button type="button" onClick={onWaveReset}>
+              {state.wave === 1 ? "웨이브 2 시작 · 초기화" : "웨이브 2 다시 초기화"}
+            </button>
+          </div>
         </div>
+
+        <p className="tracker-guide">
+          길드 덱에 남은 카드를 표시합니다. 카드가 발생할 때마다 해당 토큰을
+          끄세요.
+        </p>
 
         <div className="token-legend" aria-label="방 종류 토큰 범례">
           {roomTokens.map((token) => (
@@ -748,11 +746,14 @@ function PlayScreen({
           <article className="extra-token-row event-row">
             <div>
               <span className="round-token event-token">
-                <img src={asset("/assets/icons/special.png")} alt="" />
+                <img src={asset("/assets/icons/event.png")} alt="" />
               </span>
               <div>
                 <strong>이벤트</strong>
-                <small>이벤트 카드가 공개되면 끄기</small>
+                <small>
+                  웨이브 {state.wave} · 남은 이벤트 카드 {state.eventTokens.filter(Boolean).length}
+                  장
+                </small>
               </div>
             </div>
             <div className="small-token-list">
@@ -767,7 +768,7 @@ function PlayScreen({
                       remaining ? "남음" : "사용됨"
                     }`}
                   >
-                    <img src={asset("/assets/icons/special.png")} alt="" />
+                    <img src={asset("/assets/icons/event.png")} alt="" />
                   </button>
                 ))
               ) : (
@@ -784,7 +785,11 @@ function PlayScreen({
                 </span>
                 <div>
                   <strong>신참</strong>
-                  <small>소환할 때마다 토큰 켜기</small>
+                  <small>
+                    {state.wave === 1
+                      ? "소환할 때마다 토큰 켜기"
+                      : `남은 신참 카드 ${state.noviceTokens.filter(Boolean).length}장 · 발생할 때마다 끄기`}
+                  </small>
                 </div>
               </div>
               <div className="small-token-list novice-token-list">
@@ -792,10 +797,24 @@ function PlayScreen({
                   <button
                     key={index}
                     type="button"
-                    className={used ? "used" : "unused"}
+                    className={
+                      state.wave === 1
+                        ? used
+                          ? "used"
+                          : "unused"
+                        : used
+                          ? "remaining"
+                          : "spent"
+                    }
                     onClick={() => onNoviceToken(index)}
                     aria-label={`신참 토큰 ${index + 1}, ${
-                      used ? "소환됨" : "미사용"
+                      state.wave === 1
+                        ? used
+                          ? "소환됨"
+                          : "미사용"
+                        : used
+                          ? "남음"
+                          : "사용됨"
                     }`}
                   >
                     <img src={asset("/assets/heroes/novice.png")} alt="" />
@@ -831,6 +850,48 @@ function PlayScreen({
         </button>
       </div>
     </main>
+  );
+}
+
+function StagePageDialog({
+  stage,
+  onClose,
+}: {
+  stage: Stage | null;
+  onClose: () => void;
+}) {
+  if (!stage) return null;
+  const pageImage = asset(
+    `/assets/dungeon-pages/stage-${String(stage.page).padStart(2, "0")}.jpg`,
+  );
+
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
+      <section
+        className="stage-page-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${stage.title} 던전 책자 ${stage.page}쪽`}
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <header>
+          <div>
+            <small>던전 책자 {stage.page}쪽</small>
+            <h2>{stage.title}</h2>
+          </div>
+          <button type="button" onClick={onClose} aria-label="던전 책자 닫기">
+            ×
+          </button>
+        </header>
+        <img
+          src={pageImage}
+          alt={`${stage.title} 던전 책자 ${stage.page}쪽`}
+        />
+        <a href={pageImage} target="_blank" rel="noreferrer">
+          이미지만 새 창에서 보기
+        </a>
+      </section>
+    </div>
   );
 }
 
@@ -945,6 +1006,8 @@ export default function Home() {
   const [loaded, setLoaded] = useState(false);
   const [editingProgress, setEditingProgress] = useState(false);
   const [rulebookOpen, setRulebookOpen] = useState(false);
+  const [stagePageOpen, setStagePageOpen] = useState<Stage | null>(null);
+  const [resumePlay, setResumePlay] = useState(false);
   const [rewardChapter, setRewardChapter] = useState<Chapter | null>(null);
   const [rewardAnnouncement, setRewardAnnouncement] = useState(false);
   const [returnHomeAfterReward, setReturnHomeAfterReward] = useState(false);
@@ -954,6 +1017,7 @@ export default function Home() {
     try {
       const stored =
         window.localStorage.getItem(STORAGE_KEY) ??
+        window.localStorage.getItem(PREVIOUS_STORAGE_KEY) ??
         window.localStorage.getItem(LEGACY_STORAGE_KEY);
       if (stored) hydrated = migrateStoredState(JSON.parse(stored));
     } catch {
@@ -995,6 +1059,21 @@ export default function Home() {
   const goHome = () => {
     update((previous) => ({ ...previous, screen: "home" }));
     setEditingProgress(false);
+    setResumePlay(false);
+  };
+
+  const goBack = () => {
+    setResumePlay(state.screen === "play");
+    update((previous) => {
+      if (previous.screen === "play") {
+        return { ...previous, screen: "setup" };
+      }
+      if (previous.screen === "setup" && previous.mode === "custom") {
+        return { ...previous, screen: "select" };
+      }
+      return { ...previous, screen: "home" };
+    });
+    setEditingProgress(false);
   };
 
   const startMode = (mode: GameMode) => {
@@ -1006,9 +1085,17 @@ export default function Home() {
       ...previous,
       mode,
       stageId: stage.id,
-      screen: mode === "chronicle" ? "start" : "select",
+      screen: mode === "chronicle" ? "setup" : "select",
+      checklist:
+        mode === "chronicle"
+          ? {
+              ...previous.checklist,
+              [stage.id]: stage.setup.map(() => false),
+            }
+          : previous.checklist,
       notes: "",
     }));
+    setResumePlay(false);
   };
 
   const setDifficulty = (difficulty: Difficulty) => {
@@ -1024,6 +1111,16 @@ export default function Home() {
         ...previous.checklist,
         [stage.id]: stage.setup.map(() => false),
       },
+      notes: "",
+    }));
+    setResumePlay(false);
+  };
+
+  const startPlay = () => {
+    const stage = stageById[state.stageId];
+    update((previous) => ({
+      ...previous,
+      screen: "play",
       heroTokens: freshHeroTokens(),
       eventTokens: Array.from(
         { length: eventCardCount(stage) },
@@ -1035,6 +1132,7 @@ export default function Home() {
             () => false,
           )
         : [],
+      wave: 1,
       notes: "",
     }));
   };
@@ -1081,6 +1179,16 @@ export default function Home() {
     }));
   };
 
+  const resetForWaveTwo = () => {
+    update((previous) => ({
+      ...previous,
+      wave: 2,
+      heroTokens: freshHeroTokens(),
+      eventTokens: previous.eventTokens.map(() => true),
+      noviceTokens: previous.noviceTokens.map(() => true),
+    }));
+  };
+
   const finishGame = (cleared: boolean) => {
     if (!cleared || state.mode === "custom") {
       goHome();
@@ -1119,22 +1227,27 @@ export default function Home() {
   return (
     <div className="site-shell">
       <header className="app-header">
-        <button className="wordmark" type="button" onClick={goHome}>
-          <strong>KEEP THE LEDGER</strong>
-          <span>던전 원정 장부</span>
-        </button>
-        <div className="header-actions">
-          {state.screen === "play" && (
-            <button type="button" onClick={() => setRulebookOpen(true)}>
-              룰북
-            </button>
-          )}
+        <div className="header-navigation">
           {state.screen !== "home" && (
-            <button type="button" onClick={goHome}>
-              홈
+            <button type="button" onClick={goBack}>
+              ← 뒤로가기
             </button>
           )}
+          <button
+            type="button"
+            onClick={goHome}
+            aria-current={state.screen === "home" ? "page" : undefined}
+          >
+            홈
+          </button>
         </div>
+        <button
+          className="rulebook-button"
+          type="button"
+          onClick={() => setRulebookOpen(true)}
+        >
+          룰북
+        </button>
       </header>
 
       {state.screen === "home" && (
@@ -1160,26 +1273,11 @@ export default function Home() {
         />
       )}
 
-      {state.screen === "start" && (
-        <StartScreen
-          state={state}
-          onDifficulty={setDifficulty}
-          onNovices={(novicesEnabled) =>
-            update((previous) => ({ ...previous, novicesEnabled }))
-          }
-          onContinue={prepareSetup}
-        />
-      )}
-
       {state.screen === "select" && (
         <SelectScreen
           state={state}
           onStage={(stageId) =>
             update((previous) => ({ ...previous, stageId }))
-          }
-          onDifficulty={setDifficulty}
-          onNovices={(novicesEnabled) =>
-            update((previous) => ({ ...previous, novicesEnabled }))
           }
           onContinue={prepareSetup}
         />
@@ -1188,10 +1286,21 @@ export default function Home() {
       {state.screen === "setup" && (
         <SetupScreen
           state={state}
-          onCheck={toggleChecklist}
-          onPlay={() =>
-            update((previous) => ({ ...previous, screen: "play" }))
+          resuming={resumePlay}
+          onDifficulty={setDifficulty}
+          onNovices={(novicesEnabled) =>
+            update((previous) => ({ ...previous, novicesEnabled }))
           }
+          onCheck={toggleChecklist}
+          onBooklet={() => setStagePageOpen(activeStage)}
+          onPlay={() => {
+            if (resumePlay) {
+              update((previous) => ({ ...previous, screen: "play" }));
+              setResumePlay(false);
+            } else {
+              startPlay();
+            }
+          }}
         />
       )}
 
@@ -1201,6 +1310,8 @@ export default function Home() {
           onHeroToken={toggleHeroToken}
           onEventToken={(index) => toggleArrayToken("eventTokens", index)}
           onNoviceToken={(index) => toggleArrayToken("noviceTokens", index)}
+          onWaveReset={resetForWaveTwo}
+          onBooklet={() => setStagePageOpen(activeStage)}
           onNotes={(notes) =>
             update((previous) => ({ ...previous, notes }))
           }
@@ -1212,6 +1323,10 @@ export default function Home() {
       <RulebookDialog
         open={rulebookOpen}
         onClose={() => setRulebookOpen(false)}
+      />
+      <StagePageDialog
+        stage={stagePageOpen}
+        onClose={() => setStagePageOpen(null)}
       />
       <RewardDialog
         chapter={rewardChapter}

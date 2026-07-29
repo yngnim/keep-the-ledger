@@ -27,6 +27,43 @@ export type Chapter = {
   rewardText: string;
 };
 
+export type ScenarioEventCard = {
+  label: string;
+  count: number;
+};
+
+export const stageEventCards: Record<number, ScenarioEventCard[]> = {
+  1: [{ label: "마녀", count: 2 }],
+  2: [{ label: "처형인", count: 4 }],
+  3: [{ label: "트롤", count: 2 }],
+  4: [{ label: "황소개구리 왕", count: 2 }],
+  5: [{ label: "사서", count: 2 }],
+  6: [{ label: "늑대인간", count: 2 }],
+  7: [{ label: "도둑질", count: 2 }],
+  8: [{ label: "인어", count: 2 }],
+  9: [{ label: "초짜 꼬맹이", count: 2 }],
+  10: [{ label: "행진", count: 2 }],
+  11: [{ label: "드래곤", count: 2 }],
+  12: [{ label: "돌진", count: 2 }],
+  13: [{ label: "부화", count: 2 }],
+  14: [{ label: "보물찾기", count: 2 }],
+  15: [{ label: "강령술사", count: 2 }],
+  16: [
+    { label: "행진", count: 2 },
+    { label: "기타 솔로", count: 2 },
+  ],
+  17: [
+    { label: "사서", count: 2 },
+    { label: "마녀 집회", count: 4 },
+  ],
+  18: [
+    { label: "드래곤", count: 2 },
+    { label: "강아지", count: 4 },
+  ],
+  19: [{ label: "슬라임 본사 직원", count: 4 }],
+  20: [],
+};
+
 export const chapters: Chapter[] = [
   {
     id: 1,
@@ -681,4 +718,3 @@ export const rulebookSections = [
   { title: "보스 배틀", detail: "웨이브 전환과 보스 처리", page: 28 },
   { title: "길드 마스터", detail: "모드 · 업그레이드 · 결합 규칙", page: 33 },
 ] as const;
-
