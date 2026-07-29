@@ -69,8 +69,13 @@ test("ships the real token model, persistence, rulebooks, and static export", as
   assert.match(page, /noviceCards:\s*12/);
   assert.match(page, /침입 토큰/);
   assert.match(page, /freshNoviceTokens/);
+  assert.match(page, /novicePresetCounts/);
+  assert.match(page, /noviceTokenCounts/);
+  assert.match(page, /신참 카드 구성/);
+  assert.match(page, /각 모양이 1장·2장·3장씩 기본 구성/);
   assert.match(page, /noviceTokenCount/);
   assert.match(page, /noviceTokenSlots/);
+  assert.doesNotMatch(page, /noviceCopies/);
   assert.doesNotMatch(page, /남은 신참 카드/);
   assert.ok(page.indexOf("novice-row") < page.indexOf("event-row"));
   assert.match(page, /unlockedRewards/);
@@ -104,7 +109,7 @@ test("ships the real token model, persistence, rulebooks, and static export", as
   assert.match(styles, /grid-template-columns:\s*190px minmax\(0,\s*1fr\)/);
   assert.match(styles, /width:\s*min\(1500px,\s*100%\)/);
   assert.match(styles, /\.rulebook-page-stage img\s*\{[^}]*width:\s*100%/s);
-  assert.match(serviceWorker, /keep-the-ledger-shell-v3/);
+  assert.match(serviceWorker, /keep-the-ledger-shell-v4/);
   assert.match(exportedHtml, /Keep the Ledger/);
 
   await Promise.all([

@@ -20,6 +20,7 @@ type HeroKey = "rogue" | "archer" | "mage" | "warrior";
 type RoomTokenKey = "sword" | "eye" | "bone" | "hat";
 type CompletionMap = Record<number, boolean>;
 type HeroTokenState = Record<HeroKey, Record<RoomTokenKey, boolean>>;
+type NoviceTokenCounts = Record<RoomTokenKey, number>;
 
 type AppState = {
   screen: Screen;
@@ -31,6 +32,7 @@ type AppState = {
   checklist: Record<number, boolean[]>;
   heroTokens: HeroTokenState;
   eventTokens: boolean[];
+  noviceTokenCounts: NoviceTokenCounts;
   noviceTokens: boolean[];
   notes: string;
   updatedAt: string;
@@ -108,11 +110,11 @@ const heroes: Array<{
 
 const difficulties: Record<
   Difficulty,
-  { label: string; noviceCards: number; note: string }
+  { label: string; noviceCards: number }
 > = {
-  beginner: { label: "초심자", noviceCards: 4, note: "신참 4장" },
-  challenger: { label: "도전자", noviceCards: 8, note: "신참 8장" },
-  expert: { label: "전문가", noviceCards: 12, note: "신참 12장" },
+  beginner: { label: "초심자", noviceCards: 4 },
+  challenger: { label: "도전자", noviceCards: 8 },
+  expert: { label: "전문가", noviceCards: 12 },
 };
 
 function asset(path: string) {
@@ -187,6 +189,23 @@ function freshHeroTokens(): HeroTokenState {
   ) as HeroTokenState;
 }
 
+function novicePresetCounts(difficulty: Difficulty): NoviceTokenCounts {
+  const copies = difficulties[difficulty].noviceCards / roomTokens.length;
+  return Object.fromEntries(
+    roomTokens.map((token) => [token.key, copies]),
+  ) as NoviceTokenCounts;
+}
+
+function noviceTokenTotal(counts: NoviceTokenCounts) {
+  return roomTokens.reduce((total, token) => total + counts[token.key], 0);
+}
+
+function freshNoviceTokens(counts: NoviceTokenCounts, enabled: boolean) {
+  return enabled
+    ? Array.from({ length: noviceTokenTotal(counts) }, () => true)
+    : [];
+}
+
 const defaultState: AppState = {
   screen: "home",
   mode: "chronicle",
@@ -197,6 +216,7 @@ const defaultState: AppState = {
   checklist: {},
   heroTokens: freshHeroTokens(),
   eventTokens: [],
+  noviceTokenCounts: novicePresetCounts("beginner"),
   noviceTokens: [],
   notes: "",
   updatedAt: new Date(0).toISOString(),
@@ -217,12 +237,6 @@ function eventCardCount(stage: Stage) {
   );
 }
 
-function freshNoviceTokens(difficulty: Difficulty, enabled: boolean) {
-  return enabled
-    ? Array.from({ length: difficulties[difficulty].noviceCards }, () => true)
-    : [];
-}
-
 function migrateStoredState(value: unknown): AppState {
   if (!value || typeof value !== "object") return defaultState;
   const parsed = value as Partial<AppState> & {
@@ -233,11 +247,23 @@ function migrateStoredState(value: unknown): AppState {
   const { wave: legacyWave, ...currentFields } = parsed;
   const storedScreen = (parsed as { screen?: string }).screen;
   const stageId = parsed.stageId ?? parsed.currentStageId ?? 1;
+  const difficulty = parsed.difficulty ?? defaultState.difficulty;
+  const presetCounts = novicePresetCounts(difficulty);
+  const noviceTokenCounts = Object.fromEntries(
+    roomTokens.map((token) => {
+      const storedCount = parsed.noviceTokenCounts?.[token.key];
+      const count =
+        typeof storedCount === "number" && Number.isFinite(storedCount)
+          ? Math.max(0, Math.min(3, Math.round(storedCount)))
+          : presetCounts[token.key];
+      return [token.key, count];
+    }),
+  ) as NoviceTokenCounts;
   const expectedEventCount = eventCardCount(stageById[stageId] ?? stageById[1]);
   const expectedNoviceCount =
     parsed.novicesEnabled === false
       ? 0
-      : difficulties[parsed.difficulty ?? defaultState.difficulty].noviceCards;
+      : noviceTokenTotal(noviceTokenCounts);
   const screen: Screen =
     storedScreen === "start"
       ? "setup"
@@ -260,6 +286,7 @@ function migrateStoredState(value: unknown): AppState {
     stageId,
     completions: { ...legacyCompletions, ...parsed.completions },
     heroTokens: parsed.heroTokens ?? freshHeroTokens(),
+    noviceTokenCounts,
     eventTokens:
       parsed.eventTokens?.length === expectedEventCount
         ? parsed.eventTokens
@@ -267,7 +294,7 @@ function migrateStoredState(value: unknown): AppState {
     noviceTokens:
       legacyWave || parsed.noviceTokens?.length !== expectedNoviceCount
         ? freshNoviceTokens(
-            parsed.difficulty ?? defaultState.difficulty,
+            noviceTokenCounts,
             parsed.novicesEnabled !== false,
           )
         : (parsed.noviceTokens ?? []),
@@ -323,13 +350,17 @@ function GameConfig({
   banScope,
   onDifficulty,
   onNovices,
+  onNoviceCount,
 }: {
   state: AppState;
   bannedClans: string[];
   banScope: string;
   onDifficulty: (difficulty: Difficulty) => void;
   onNovices: (enabled: boolean) => void;
+  onNoviceCount: (token: RoomTokenKey, count: number) => void;
 }) {
+  const noviceCount = noviceTokenTotal(state.noviceTokenCounts);
+
   return (
     <section className="config-panel">
       <div className="section-title">
@@ -337,7 +368,10 @@ function GameConfig({
           <small>게임 준비</small>
           <h2>난이도</h2>
         </div>
-        <p>난이도에 맞춰 신참 카드 수가 정해집니다.</p>
+        <p>
+          난이도는 기본 구성을 채웁니다. 신참 카드는 아래에서 직접 조절할 수
+          있습니다.
+        </p>
       </div>
 
       <div className="difficulty-grid">
@@ -352,7 +386,7 @@ function GameConfig({
               aria-pressed={state.difficulty === key}
             >
               <strong>{difficulty.label}</strong>
-              <span>{difficulty.note}</span>
+              <span>기본 {difficulty.noviceCards}장</span>
             </button>
           );
         })}
@@ -369,11 +403,61 @@ function GameConfig({
           <strong>신참 사용</strong>
           <small>
             {state.novicesEnabled
-              ? `${difficulties[state.difficulty].noviceCards}장을 길드 카드 더미에 추가`
+              ? `현재 ${noviceCount}장을 길드 카드 더미에 추가`
               : "신참 카드를 사용하지 않음"}
           </small>
         </div>
       </label>
+
+      {state.novicesEnabled && (
+        <section className="novice-customizer">
+          <header>
+            <div>
+              <small>직접 선택</small>
+              <strong>신참 카드 구성</strong>
+            </div>
+            <span>총 {noviceCount}장</span>
+          </header>
+          <div className="novice-count-grid">
+            {roomTokens.map((token) => {
+              const count = state.noviceTokenCounts[token.key];
+              return (
+                <article key={token.key}>
+                  <div>
+                    <img src={asset(token.icon)} alt="" />
+                    <strong>{token.label}</strong>
+                  </div>
+                  <div className="novice-count-stepper">
+                    <button
+                      type="button"
+                      onClick={() => onNoviceCount(token.key, count - 1)}
+                      disabled={count === 0}
+                      aria-label={`${token.label} 신참 카드 1장 빼기`}
+                    >
+                      −
+                    </button>
+                    <output aria-label={`${token.label} 신참 카드 ${count}장`}>
+                      {count}
+                    </output>
+                    <button
+                      type="button"
+                      onClick={() => onNoviceCount(token.key, count + 1)}
+                      disabled={count === 3}
+                      aria-label={`${token.label} 신참 카드 1장 추가`}
+                    >
+                      +
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+          <p>
+            난이도를 다시 선택하면 각 모양이 1장·2장·3장씩 기본 구성으로
+            돌아갑니다.
+          </p>
+        </section>
+      )}
 
       {bannedClans.length > 0 && (
         <div className="clan-ban">
@@ -668,6 +752,7 @@ function SetupScreen({
   resuming,
   onDifficulty,
   onNovices,
+  onNoviceCount,
   onCheck,
   onBooklet,
   onPlay,
@@ -676,6 +761,7 @@ function SetupScreen({
   resuming: boolean;
   onDifficulty: (difficulty: Difficulty) => void;
   onNovices: (enabled: boolean) => void;
+  onNoviceCount: (token: RoomTokenKey, count: number) => void;
   onCheck: (index: number) => void;
   onBooklet: () => void;
   onPlay: () => void;
@@ -712,7 +798,7 @@ function SetupScreen({
           <span>{difficulties[state.difficulty].label}</span>
           <span>
             {state.novicesEnabled
-              ? difficulties[state.difficulty].note
+              ? `신참 ${noviceTokenTotal(state.noviceTokenCounts)}장`
               : "신참 미사용"}
           </span>
         </div>
@@ -725,6 +811,7 @@ function SetupScreen({
           banScope={banScope}
           onDifficulty={onDifficulty}
           onNovices={onNovices}
+          onNoviceCount={onNoviceCount}
         />
 
         <aside className="booklet-card">
@@ -830,11 +917,13 @@ function PlayScreen({
     chapterRewardUnlocked(chapter, state.completions),
   );
   const noviceTokenCount = state.novicesEnabled
-    ? difficulties[state.difficulty].noviceCards
+    ? noviceTokenTotal(state.noviceTokenCounts)
     : 0;
-  const noviceCopies = noviceTokenCount / roomTokens.length;
   const noviceTokenSlots = roomTokens.flatMap((token) =>
-    Array.from({ length: noviceCopies }, () => token),
+    Array.from(
+      { length: state.noviceTokenCounts[token.key] },
+      () => token,
+    ),
   );
   const visibleNoviceTokens =
     state.noviceTokens.length === noviceTokenCount
@@ -1382,19 +1471,46 @@ export default function Home() {
   };
 
   const setDifficulty = (difficulty: Difficulty) => {
-    update((previous) => ({
-      ...previous,
-      difficulty,
-      noviceTokens: freshNoviceTokens(difficulty, previous.novicesEnabled),
-    }));
+    update((previous) => {
+      const noviceTokenCounts = novicePresetCounts(difficulty);
+      return {
+        ...previous,
+        difficulty,
+        noviceTokenCounts,
+        noviceTokens: freshNoviceTokens(
+          noviceTokenCounts,
+          previous.novicesEnabled,
+        ),
+      };
+    });
   };
 
   const setNovicesEnabled = (novicesEnabled: boolean) => {
     update((previous) => ({
       ...previous,
       novicesEnabled,
-      noviceTokens: freshNoviceTokens(previous.difficulty, novicesEnabled),
+      noviceTokens: freshNoviceTokens(
+        previous.noviceTokenCounts,
+        novicesEnabled,
+      ),
     }));
+  };
+
+  const setNoviceCount = (token: RoomTokenKey, count: number) => {
+    update((previous) => {
+      const noviceTokenCounts = {
+        ...previous.noviceTokenCounts,
+        [token]: Math.max(0, Math.min(3, count)),
+      };
+      return {
+        ...previous,
+        noviceTokenCounts,
+        noviceTokens: freshNoviceTokens(
+          noviceTokenCounts,
+          previous.novicesEnabled,
+        ),
+      };
+    });
   };
 
   const prepareSetup = () => {
@@ -1423,9 +1539,10 @@ export default function Home() {
         { length: eventCardCount(stage) },
         () => true,
       ),
-      noviceTokens: previous.novicesEnabled
-        ? freshNoviceTokens(previous.difficulty, true)
-        : [],
+      noviceTokens: freshNoviceTokens(
+        previous.noviceTokenCounts,
+        previous.novicesEnabled,
+      ),
       notes: "",
     }));
   };
@@ -1480,7 +1597,7 @@ export default function Home() {
   const toggleNoviceToken = (index: number) => {
     update((previous) => {
       const expected = freshNoviceTokens(
-        previous.difficulty,
+        previous.noviceTokenCounts,
         previous.novicesEnabled,
       );
       const current =
@@ -1502,7 +1619,7 @@ export default function Home() {
       heroTokens: freshHeroTokens(),
       eventTokens: previous.eventTokens.map(() => true),
       noviceTokens: freshNoviceTokens(
-        previous.difficulty,
+        previous.noviceTokenCounts,
         previous.novicesEnabled,
       ),
     }));
@@ -1631,6 +1748,7 @@ export default function Home() {
           resuming={resumePlay}
           onDifficulty={setDifficulty}
           onNovices={setNovicesEnabled}
+          onNoviceCount={setNoviceCount}
           onCheck={toggleChecklist}
           onBooklet={() => setStagePageOpen(activeStage)}
           onPlay={() => {

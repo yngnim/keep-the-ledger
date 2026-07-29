@@ -779,6 +779,118 @@ small {
   color: var(--muted);
 }
 
+.novice-customizer {
+  margin-top: 10px;
+  padding: 15px 16px 13px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fbfaf6;
+}
+
+.novice-customizer > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.novice-customizer > header div {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.novice-customizer > header small {
+  color: var(--gold);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.novice-customizer > header strong {
+  font-size: 0.9rem;
+}
+
+.novice-customizer > header > span {
+  color: var(--forest);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.novice-count-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.novice-count-grid article {
+  display: grid;
+  gap: 9px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.novice-count-grid article > div:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.novice-count-grid img {
+  width: 25px;
+  height: 25px;
+  object-fit: contain;
+}
+
+.novice-count-grid article strong {
+  font-size: 0.78rem;
+}
+
+.novice-count-stepper {
+  display: grid;
+  grid-template-columns: 30px minmax(24px, 1fr) 30px;
+  align-items: center;
+  min-height: 30px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.novice-count-stepper button {
+  display: grid;
+  place-items: center;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  background: var(--surface-soft);
+  color: var(--forest);
+  font-size: 1.05rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.novice-count-stepper button:disabled {
+  color: #b9b9b4;
+  cursor: default;
+}
+
+.novice-count-stepper output {
+  text-align: center;
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.novice-customizer > p {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
 .clan-ban {
   display: flex;
   align-items: center;
@@ -1934,6 +2046,10 @@ small {
 
   .mode-buttons {
     grid-template-columns: 1fr;
+  }
+
+  .novice-count-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .mode-buttons > button {

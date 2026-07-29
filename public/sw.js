@@ -1,4 +1,4 @@
-const CACHE_NAME = "keep-the-ledger-shell-v3";
+const CACHE_NAME = "keep-the-ledger-shell-v4";
 const APP_ROOT = new URL("./", self.location).href;
 
 self.addEventListener("install", (event) => {
