@@ -75,7 +75,9 @@ test("ships the real token model, persistence, rulebooks, and static export", as
   assert.ok(page.indexOf("novice-row") < page.indexOf("event-row"));
   assert.match(page, /unlockedRewards/);
   assert.match(page, /큰 몬스터 → 작은 몬스터/);
-  assert.match(page, /zoom=page-width/);
+  assert.match(page, /assets\/rulebook-pages\/page-/);
+  assert.match(page, /rulebook-page-stage/);
+  assert.doesNotMatch(page, /zoom=page-width|<iframe/);
   assert.match(data, /stageIds:\s*\[1,\s*4,\s*13,\s*15\]/);
   assert.match(data, /stageIds:\s*\[3,\s*9,\s*19,\s*20\]/);
   assert.match(data, /bannedClans:\s*\["도마뱀",\s*"해골"\]/);
@@ -94,12 +96,25 @@ test("ships the real token model, persistence, rulebooks, and static export", as
   assert.doesNotMatch(data, /개구리 식단에 지친 마녀의 점심/);
   assert.match(styles, /grid-template-columns:\s*190px minmax\(0,\s*1fr\)/);
   assert.match(styles, /width:\s*min\(1500px,\s*100%\)/);
+  assert.match(styles, /\.rulebook-page-stage img\s*\{[^}]*width:\s*100%/s);
   assert.match(serviceWorker, /keep-the-ledger-shell-v2/);
   assert.match(exportedHtml, /Keep the Ledger/);
 
   await Promise.all([
     access(new URL("../out/rulebooks/player-rulebook.pdf", import.meta.url)),
     access(new URL("../out/rulebooks/dungeon-book.pdf", import.meta.url)),
+    access(
+      new URL(
+        "../out/assets/rulebook-pages/page-01.webp",
+        import.meta.url,
+      ),
+    ),
+    access(
+      new URL(
+        "../out/assets/rulebook-pages/page-35.webp",
+        import.meta.url,
+      ),
+    ),
     access(new URL("../out/assets/dungeon-pages/stage-23.jpg", import.meta.url)),
     access(new URL("../out/assets/heroes/warrior.png", import.meta.url)),
     access(new URL("../out/assets/heroes/rogue.png", import.meta.url)),

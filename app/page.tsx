@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   chapters,
   chronologicalStages,
@@ -989,7 +989,18 @@ function RulebookDialog({
   onClose: () => void;
 }) {
   const [page, setPage] = useState(1);
+  const pageStageRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    pageStageRef.current?.scrollTo({ top: 0 });
+  }, [open, page]);
+
   if (!open) return null;
+
+  const pageImage = asset(
+    `/assets/rulebook-pages/page-${String(page).padStart(2, "0")}.webp`,
+  );
 
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
@@ -1027,21 +1038,40 @@ function RulebookDialog({
             ))}
           </nav>
           <div className="rulebook-viewer">
-            <iframe
-              title={`플레이어 룰북 ${page}쪽`}
-              src={`${asset(
-                "/rulebooks/player-rulebook.pdf",
-              )}#page=${page}&zoom=page-width&view=FitH&toolbar=0&navpanes=0`}
-            />
-            <a
-              href={`${asset(
-                "/rulebooks/player-rulebook.pdf",
-              )}#page=${page}&view=FitH`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              새 창에서 크게 보기 ↗
-            </a>
+            <div className="rulebook-page-toolbar">
+              <button
+                type="button"
+                disabled={page === 1}
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+              >
+                ← 이전
+              </button>
+              <strong>
+                {page} / 35
+              </strong>
+              <button
+                type="button"
+                disabled={page === 35}
+                onClick={() => setPage((current) => Math.min(35, current + 1))}
+              >
+                다음 →
+              </button>
+              <a
+                href={`${asset("/rulebooks/player-rulebook.pdf")}#page=${page}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                원본 PDF ↗
+              </a>
+            </div>
+            <div className="rulebook-page-stage" ref={pageStageRef}>
+              <img
+                key={pageImage}
+                src={pageImage}
+                alt={`플레이어 룰북 ${page}쪽`}
+                decoding="async"
+              />
+            </div>
           </div>
         </div>
       </section>
