@@ -21,21 +21,12 @@ export const metadata: Metadata = {
     title: "Keep the Ledger | 던전 원정 장부",
     description:
       "연대기 순서, 던전 세팅, 침입 토큰과 통합 룰북을 한곳에서.",
-    images: [
-      {
-        url: `${basePath}/og.png`,
-        width: 1734,
-        height: 907,
-        alt: "Keep the Ledger 던전 원정 장부",
-      },
-    ],
   },
   twitter: {
-    card: "summary_large_image",
+    card: "summary",
     title: "Keep the Ledger | 던전 원정 장부",
     description:
       "연대기 순서, 던전 세팅, 침입 토큰과 통합 룰북을 한곳에서.",
-    images: [`${basePath}/og.png`],
   },
 };
 

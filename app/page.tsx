@@ -1,259 +1,900 @@
 "use client";
 
-import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   chapters,
   chronologicalStages,
   rulebookSections,
   stageById,
+  stages,
   type Chapter,
   type Stage,
 } from "./data";
 
-type View = "chronicle" | "setup" | "play" | "records";
-type Result = "win" | "loss" | null;
+type Screen = "home" | "start" | "select" | "setup" | "play";
+type GameMode = "chronicle" | "custom";
 type Difficulty = "beginner" | "challenger" | "expert";
-type TokenKey = "sword" | "eye" | "bone" | "hat" | "special";
+type HeroKey = "rogue" | "archer" | "mage" | "warrior";
+type RoomTokenKey = "sword" | "eye" | "bone" | "hat";
+type CompletionMap = Record<number, boolean>;
+type HeroTokenState = Record<HeroKey, Record<RoomTokenKey, boolean>>;
 
 type AppState = {
-  currentStageId: number;
-  results: Record<number, Result>;
-  checklist: Record<number, boolean[]>;
+  screen: Screen;
+  mode: GameMode;
+  stageId: number;
   difficulty: Difficulty;
-  wave: 1 | 2;
-  tokenStart: Record<TokenKey, number>;
-  tokenRemaining: Record<TokenKey, number>;
+  novicesEnabled: boolean;
+  completions: CompletionMap;
+  checklist: Record<number, boolean[]>;
+  heroTokens: HeroTokenState;
+  eventTokens: boolean[];
+  noviceTokens: boolean[];
   notes: string;
   updatedAt: string;
 };
 
-const STORAGE_KEY = "keep-the-ledger:v1";
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+const STORAGE_KEY = "keep-the-ledger:v2";
+const LEGACY_STORAGE_KEY = "keep-the-ledger:v1";
 
-const initialTokens: Record<TokenKey, number> = {
-  sword: 3,
-  eye: 3,
-  bone: 3,
-  hat: 3,
-  special: 2,
-};
-
-const defaultState: AppState = {
-  currentStageId: 1,
-  results: {},
-  checklist: {},
-  difficulty: "beginner",
-  wave: 1,
-  tokenStart: initialTokens,
-  tokenRemaining: initialTokens,
-  notes: "",
-  updatedAt: new Date(0).toISOString(),
-};
-
-const tokenMeta: Array<{
-  key: TokenKey;
+const roomTokens: Array<{
+  key: RoomTokenKey;
   label: string;
   rooms: string;
   icon: string;
-  tone: string;
 }> = [
   {
     key: "sword",
     label: "검",
     rooms: "대장간 · 공방",
     icon: "/assets/icons/sword.svg",
-    tone: "coral",
   },
   {
     key: "eye",
-    label: "신비한 눈",
+    label: "눈",
     rooms: "묘지 · 서재",
     icon: "/assets/icons/eye.svg",
-    tone: "violet",
   },
   {
     key: "bone",
     label: "뼈",
     rooms: "하수도 · 야수 조련실",
     icon: "/assets/icons/bone.svg",
-    tone: "mint",
   },
   {
     key: "hat",
     label: "모자",
     rooms: "도서관 · 약제실",
     icon: "/assets/icons/hat.svg",
-    tone: "sky",
+  },
+];
+
+const heroes: Array<{
+  key: HeroKey;
+  label: string;
+  image: string;
+  tone: string;
+}> = [
+  {
+    key: "warrior",
+    label: "전사",
+    image: "/assets/heroes/warrior.png",
+    tone: "warrior",
   },
   {
-    key: "special",
-    label: "시나리오",
-    rooms: "이벤트 · 특수 카드",
-    icon: "/assets/icons/special.png",
-    tone: "amber",
+    key: "rogue",
+    label: "도적",
+    image: "/assets/heroes/rogue.png",
+    tone: "rogue",
+  },
+  {
+    key: "archer",
+    label: "궁수",
+    image: "/assets/heroes/archer.png",
+    tone: "archer",
+  },
+  {
+    key: "mage",
+    label: "마법사",
+    image: "/assets/heroes/mage.png",
+    tone: "mage",
   },
 ];
 
-const viewMeta: Array<{
-  id: View;
-  label: string;
-  short: string;
-  glyph: string;
-}> = [
-  { id: "chronicle", label: "연대기", short: "연대기", glyph: "◆" },
-  { id: "setup", label: "던전 세팅", short: "세팅", glyph: "⌘" },
-  { id: "play", label: "플레이 보조", short: "플레이", glyph: "✦" },
-  { id: "records", label: "기록 보관소", short: "기록", glyph: "▤" },
-];
-
-const difficultyMeta: Record<
+const difficulties: Record<
   Difficulty,
-  { label: string; wave1: number; wave2: number }
+  { label: string; noviceCards: number; note: string }
 > = {
-  beginner: { label: "초심자", wave1: 1, wave2: 2 },
-  challenger: { label: "도전자", wave1: 2, wave2: 2 },
-  expert: { label: "전문가", wave1: 2, wave2: 3 },
+  beginner: { label: "초심자", noviceCards: 4, note: "신참 4장" },
+  challenger: { label: "도전자", noviceCards: 8, note: "신참 8장" },
+  expert: { label: "전문가", noviceCards: 12, note: "신참 12장" },
 };
 
 function asset(path: string) {
   return `${BASE_PATH}${path}`;
 }
 
-function getChronologyPosition(stageId: number) {
-  return chronologicalStages.findIndex((stage) => stage.id === stageId);
+function freshHeroTokens(): HeroTokenState {
+  return Object.fromEntries(
+    heroes.map((hero) => [
+      hero.key,
+      Object.fromEntries(roomTokens.map((token) => [token.key, true])),
+    ]),
+  ) as HeroTokenState;
 }
 
-function getChapter(stageId: number) {
-  return chapters.find((chapter) => chapter.stageIds.includes(stageId))!;
-}
+const defaultState: AppState = {
+  screen: "home",
+  mode: "chronicle",
+  stageId: 1,
+  difficulty: "beginner",
+  novicesEnabled: true,
+  completions: {},
+  checklist: {},
+  heroTokens: freshHeroTokens(),
+  eventTokens: [],
+  noviceTokens: [],
+  notes: "",
+  updatedAt: new Date(0).toISOString(),
+};
 
-function formatSavedAt(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime()) || date.getTime() === 0) return "첫 저장 전";
-  return new Intl.DateTimeFormat("ko-KR", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
-
-function AppIcon({ path, alt = "" }: { path: string; alt?: string }) {
-  return <img className="app-icon" src={asset(path)} alt={alt} />;
-}
-
-function ChapterProgress({
-  chapter,
-  state,
-}: {
-  chapter: Chapter;
-  state: AppState;
-}) {
-  const completed = chapter.stageIds.filter((id) => state.results[id]).length;
+function nextChronicleStage(completions: CompletionMap) {
   return (
-    <span className="chapter-progress" aria-label={`${completed}/4 완료`}>
-      {chapter.stageIds.map((id) => (
-        <i
-          key={id}
-          className={state.results[id] ? `done ${state.results[id]}` : ""}
-        />
-      ))}
-    </span>
+    chronologicalStages.find((stage) => !completions[stage.id]) ??
+    chronologicalStages.at(-1) ??
+    stageById[1]
   );
 }
 
-function RulebookDrawer({
+function eventCardCount(stage: Stage) {
+  return stage.rules.filter((rule) => rule.kind === "이벤트").length;
+}
+
+function migrateStoredState(value: unknown): AppState {
+  if (!value || typeof value !== "object") return defaultState;
+  const parsed = value as Partial<AppState> & {
+    currentStageId?: number;
+    results?: Record<number, "win" | "loss" | null>;
+  };
+  const legacyCompletions = Object.fromEntries(
+    Object.entries(parsed.results ?? {})
+      .filter(([, result]) => result === "win")
+      .map(([id]) => [Number(id), true]),
+  );
+
+  return {
+    ...defaultState,
+    ...parsed,
+    stageId: parsed.stageId ?? parsed.currentStageId ?? 1,
+    completions: { ...legacyCompletions, ...parsed.completions },
+    heroTokens: parsed.heroTokens ?? freshHeroTokens(),
+    eventTokens: parsed.eventTokens ?? [],
+    noviceTokens: parsed.noviceTokens ?? [],
+  };
+}
+
+function FlowSteps({
+  mode,
+  screen,
+}: {
+  mode: GameMode;
+  screen: Screen;
+}) {
+  const active = screen === "setup" ? 1 : screen === "play" ? 2 : 0;
+  const labels =
+    mode === "chronicle"
+      ? ["연대기 트랙", "던전 세팅", "플레이 보조"]
+      : ["던전 선택", "던전 세팅", "플레이 보조"];
+
+  return (
+    <ol className="flow-steps" aria-label="게임 진행 단계">
+      {labels.map((label, index) => (
+        <li
+          key={label}
+          className={`${index === active ? "active" : ""} ${
+            index < active ? "done" : ""
+          }`}
+          aria-current={index === active ? "step" : undefined}
+        >
+          <span>{index < active ? "✓" : index + 1}</span>
+          <strong>{label}</strong>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function StageIdentity({ stage }: { stage: Stage }) {
+  return (
+    <div className="stage-identity">
+      <span>{String(stage.id).padStart(2, "0")}</span>
+      <div>
+        <small>시나리오</small>
+        <h1>{stage.title}</h1>
+      </div>
+    </div>
+  );
+}
+
+function GameConfig({
+  state,
+  onDifficulty,
+  onNovices,
+  onContinue,
+}: {
+  state: AppState;
+  onDifficulty: (difficulty: Difficulty) => void;
+  onNovices: (enabled: boolean) => void;
+  onContinue: () => void;
+}) {
+  return (
+    <section className="config-panel">
+      <div className="section-title">
+        <div>
+          <small>게임 준비</small>
+          <h2>난이도</h2>
+        </div>
+        <p>난이도에 맞춰 신참 카드 수가 정해집니다.</p>
+      </div>
+
+      <div className="difficulty-grid">
+        {(Object.keys(difficulties) as Difficulty[]).map((key) => {
+          const difficulty = difficulties[key];
+          return (
+            <button
+              key={key}
+              type="button"
+              className={state.difficulty === key ? "selected" : ""}
+              onClick={() => onDifficulty(key)}
+              aria-pressed={state.difficulty === key}
+            >
+              <strong>{difficulty.label}</strong>
+              <span>{difficulty.note}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <label className="novice-toggle">
+        <input
+          type="checkbox"
+          checked={state.novicesEnabled}
+          onChange={(event) => onNovices(event.target.checked)}
+        />
+        <span aria-hidden="true" />
+        <div>
+          <strong>신참 사용</strong>
+          <small>
+            {state.novicesEnabled
+              ? `${difficulties[state.difficulty].noviceCards}장을 길드 카드 더미에 추가`
+              : "신참 카드를 사용하지 않음"}
+          </small>
+        </div>
+      </label>
+
+      <button className="primary-action" type="button" onClick={onContinue}>
+        던전 세팅으로
+        <span>→</span>
+      </button>
+    </section>
+  );
+}
+
+function ChronicleTrack({
+  completions,
+  editing,
+  onToggleEditing,
+  onToggleStage,
+  onReward,
+}: {
+  completions: CompletionMap;
+  editing: boolean;
+  onToggleEditing: () => void;
+  onToggleStage: (stageId: number) => void;
+  onReward: (chapter: Chapter) => void;
+}) {
+  const completeCount = Object.values(completions).filter(Boolean).length;
+
+  return (
+    <section className="chronicle-track">
+      <header className="track-header">
+        <div>
+          <small>캠페인 진행도</small>
+          <h2>연대기 트랙</h2>
+        </div>
+        <div className="track-actions">
+          <span>{completeCount} / 20 완료</span>
+          <button type="button" onClick={onToggleEditing}>
+            {editing ? "수정 완료" : "수정"}
+          </button>
+        </div>
+      </header>
+
+      {editing && (
+        <p className="edit-notice">
+          시나리오를 눌러 클리어 여부를 직접 변경할 수 있습니다.
+        </p>
+      )}
+
+      <div className="chapter-list">
+        {chapters.map((chapter) => {
+          const chapterComplete = chapter.stageIds.every(
+            (id) => completions[id],
+          );
+          const chapterCount = chapter.stageIds.filter(
+            (id) => completions[id],
+          ).length;
+
+          return (
+            <article className="chapter-line" key={chapter.id}>
+              <div className="chapter-label">
+                <span>{String(chapter.id).padStart(2, "0")}</span>
+                <div>
+                  <h3>{chapter.title}</h3>
+                  <small>{chapterCount} / 4</small>
+                </div>
+              </div>
+
+              <div className="chapter-stages">
+                {chapter.stageIds.map((stageId, index) => {
+                  const stage = stageById[stageId];
+                  const complete = Boolean(completions[stageId]);
+                  return (
+                    <button
+                      key={stageId}
+                      type="button"
+                      className={complete ? "complete" : ""}
+                      onClick={() => editing && onToggleStage(stageId)}
+                      disabled={!editing}
+                      aria-label={`${stage.title}, ${
+                        complete ? "클리어" : "미완료"
+                      }${editing ? ", 진행도 변경" : ""}`}
+                    >
+                      <i>{complete ? "✓" : index + 1}</i>
+                      <span>{stage.title}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                className={`reward-access ${chapterComplete ? "unlocked" : ""}`}
+                type="button"
+                onClick={() => onReward(chapter)}
+              >
+                <small>{chapterComplete ? "해금됨" : "해금 능력"}</small>
+                <strong>{chapter.reward}</strong>
+                <span>보기</span>
+              </button>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function HomeScreen({
+  state,
+  editing,
+  onMode,
+  onToggleEditing,
+  onToggleStage,
+  onReward,
+}: {
+  state: AppState;
+  editing: boolean;
+  onMode: (mode: GameMode) => void;
+  onToggleEditing: () => void;
+  onToggleStage: (stageId: number) => void;
+  onReward: (chapter: Chapter) => void;
+}) {
+  return (
+    <main className="home-screen">
+      <section className="start-section">
+        <div className="page-heading">
+          <h1>게임 시작</h1>
+          <p>플레이할 방식을 선택하세요.</p>
+        </div>
+
+        <div className="mode-buttons">
+          <button type="button" onClick={() => onMode("chronicle")}>
+            <div>
+              <span>01</span>
+              <small>캠페인</small>
+            </div>
+            <strong>연대기 모드</strong>
+            <p>저장된 진행도에서 다음 시나리오를 이어서 플레이합니다.</p>
+            <i>시작 →</i>
+          </button>
+          <button type="button" onClick={() => onMode("custom")}>
+            <div>
+              <span>02</span>
+              <small>자유 선택</small>
+            </div>
+            <strong>커스텀 게임</strong>
+            <p>원하는 던전을 골라 캠페인 기록과 별도로 플레이합니다.</p>
+            <i>선택 →</i>
+          </button>
+        </div>
+      </section>
+
+      <ChronicleTrack
+        completions={state.completions}
+        editing={editing}
+        onToggleEditing={onToggleEditing}
+        onToggleStage={onToggleStage}
+        onReward={onReward}
+      />
+    </main>
+  );
+}
+
+function StartScreen({
+  state,
+  onDifficulty,
+  onNovices,
+  onContinue,
+}: {
+  state: AppState;
+  onDifficulty: (difficulty: Difficulty) => void;
+  onNovices: (enabled: boolean) => void;
+  onContinue: () => void;
+}) {
+  const stage = stageById[state.stageId];
+  const position =
+    chronologicalStages.findIndex((item) => item.id === stage.id) + 1;
+
+  return (
+    <main className="flow-page">
+      <FlowSteps mode={state.mode} screen={state.screen} />
+      <section className="selection-summary">
+        <div>
+          <small>다음 시나리오 · 연대기 {position}/20</small>
+          <StageIdentity stage={stage} />
+        </div>
+        <p>{stage.story}</p>
+      </section>
+      <GameConfig
+        state={state}
+        onDifficulty={onDifficulty}
+        onNovices={onNovices}
+        onContinue={onContinue}
+      />
+    </main>
+  );
+}
+
+function SelectScreen({
+  state,
+  onStage,
+  onDifficulty,
+  onNovices,
+  onContinue,
+}: {
+  state: AppState;
+  onStage: (stageId: number) => void;
+  onDifficulty: (difficulty: Difficulty) => void;
+  onNovices: (enabled: boolean) => void;
+  onContinue: () => void;
+}) {
+  return (
+    <main className="flow-page">
+      <FlowSteps mode={state.mode} screen={state.screen} />
+      <section className="dungeon-picker">
+        <div className="section-title">
+          <div>
+            <small>커스텀 게임</small>
+            <h1>던전 선택</h1>
+          </div>
+          <p>플레이할 시나리오 하나를 선택하세요.</p>
+        </div>
+        <div className="dungeon-grid">
+          {stages.map((stage) => (
+            <button
+              key={stage.id}
+              type="button"
+              className={state.stageId === stage.id ? "selected" : ""}
+              onClick={() => onStage(stage.id)}
+              aria-pressed={state.stageId === stage.id}
+            >
+              <span>{String(stage.id).padStart(2, "0")}</span>
+              <strong>{stage.title}</strong>
+              <small>{stage.tags.join(" · ")}</small>
+            </button>
+          ))}
+        </div>
+      </section>
+      <GameConfig
+        state={state}
+        onDifficulty={onDifficulty}
+        onNovices={onNovices}
+        onContinue={onContinue}
+      />
+    </main>
+  );
+}
+
+function SetupScreen({
+  state,
+  onCheck,
+  onPlay,
+}: {
+  state: AppState;
+  onCheck: (index: number) => void;
+  onPlay: () => void;
+}) {
+  const stage = stageById[state.stageId];
+  const checked = state.checklist[stage.id] ?? stage.setup.map(() => false);
+
+  return (
+    <main className="flow-page">
+      <FlowSteps mode={state.mode} screen={state.screen} />
+      <section className="setup-header">
+        <StageIdentity stage={stage} />
+        <div className="setup-meta">
+          <span>{difficulties[state.difficulty].label}</span>
+          <span>
+            {state.novicesEnabled
+              ? difficulties[state.difficulty].note
+              : "신참 미사용"}
+          </span>
+          {stage.clanBan && <span>선택 불가: {stage.clanBan}</span>}
+        </div>
+      </section>
+
+      <div className="setup-layout">
+        <div className="setup-main">
+          <section className="plain-section story-section">
+            <div className="section-title compact">
+              <div>
+                <small>시나리오</small>
+                <h2>이야기와 기믹</h2>
+              </div>
+            </div>
+            <p className="stage-story">{stage.story}</p>
+            <div className="highlight-rule">
+              <small>핵심</small>
+              <strong>{stage.highlight}</strong>
+            </div>
+            <div className="rule-list">
+              {stage.rules.map((rule) => (
+                <article key={`${rule.kind}-${rule.title}`}>
+                  <span>{rule.kind}</span>
+                  <div>
+                    <h3>{rule.title}</h3>
+                    <p>{rule.text}</p>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className="plain-section checklist-section">
+            <div className="section-title compact">
+              <div>
+                <small>준비</small>
+                <h2>던전 세팅</h2>
+              </div>
+              <p>
+                {checked.filter(Boolean).length} / {checked.length}
+              </p>
+            </div>
+            <div className="setup-checklist">
+              {stage.setup.map((item, index) => (
+                <label key={item} className={checked[index] ? "checked" : ""}>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(checked[index])}
+                    onChange={() => onCheck(index)}
+                  />
+                  <span>{checked[index] ? "✓" : index + 1}</span>
+                  <strong>{item}</strong>
+                </label>
+              ))}
+            </div>
+          </section>
+        </div>
+
+        <aside className="booklet-card">
+          <img
+            src={asset(
+              `/assets/dungeon-pages/stage-${String(stage.page).padStart(
+                2,
+                "0",
+              )}.jpg`,
+            )}
+            alt={`${stage.title} 던전 책자 ${stage.page}쪽`}
+          />
+          <div>
+            <small>던전 책자</small>
+            <strong>{stage.page}쪽</strong>
+            <a
+              href={`${asset("/rulebooks/dungeon-book.pdf")}#page=${
+                stage.page
+              }&view=FitH`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              크게 보기 ↗
+            </a>
+          </div>
+        </aside>
+      </div>
+
+      <div className="flow-footer">
+        <button className="primary-action" type="button" onClick={onPlay}>
+          플레이 시작
+          <span>→</span>
+        </button>
+      </div>
+    </main>
+  );
+}
+
+function PlayScreen({
+  state,
+  onHeroToken,
+  onEventToken,
+  onNoviceToken,
+  onNotes,
+  onFail,
+  onClear,
+}: {
+  state: AppState;
+  onHeroToken: (hero: HeroKey, token: RoomTokenKey) => void;
+  onEventToken: (index: number) => void;
+  onNoviceToken: (index: number) => void;
+  onNotes: (notes: string) => void;
+  onFail: () => void;
+  onClear: () => void;
+}) {
+  const stage = stageById[state.stageId];
+
+  return (
+    <main className="flow-page play-page">
+      <FlowSteps mode={state.mode} screen={state.screen} />
+      <section className="play-title">
+        <StageIdentity stage={stage} />
+        <div>
+          <span>{state.mode === "chronicle" ? "연대기" : "커스텀"}</span>
+          <span>{difficulties[state.difficulty].label}</span>
+        </div>
+      </section>
+
+      <section className="play-section mechanics-section">
+        <div className="section-title compact">
+          <div>
+            <small>STAGE RULES</small>
+            <h2>기믹</h2>
+          </div>
+          <a
+            href={`${asset("/rulebooks/dungeon-book.pdf")}#page=${
+              stage.page
+            }&view=FitH`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            책자 {stage.page}쪽 ↗
+          </a>
+        </div>
+        <div className="play-rules">
+          {stage.rules.map((rule) => (
+            <article key={`${rule.kind}-${rule.title}`}>
+              <span>{rule.kind}</span>
+              <div>
+                <h3>{rule.title}</h3>
+                <p>{rule.text}</p>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="play-section invasion-section">
+        <div className="section-title compact">
+          <div>
+            <small>UNDERGROUND MARKET</small>
+            <h2>침입 토큰</h2>
+          </div>
+          <p>공개한 카드와 일치하는 토큰을 누르세요.</p>
+        </div>
+
+        <div className="token-legend" aria-label="방 종류 토큰 범례">
+          {roomTokens.map((token) => (
+            <div key={token.key}>
+              <img src={asset(token.icon)} alt="" />
+              <span>
+                <strong>{token.label}</strong>
+                <small>{token.rooms}</small>
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <div className="hero-token-list">
+          {heroes.map((hero) => (
+            <article className={`hero-token-row ${hero.tone}`} key={hero.key}>
+              <div className="hero-name">
+                <img src={asset(hero.image)} alt="" />
+                <strong>{hero.label}</strong>
+              </div>
+              <div className="hero-token-buttons">
+                {roomTokens.map((token) => {
+                  const remaining = state.heroTokens[hero.key][token.key];
+                  return (
+                    <button
+                      key={token.key}
+                      type="button"
+                      className={remaining ? "remaining" : "spent"}
+                      onClick={() => onHeroToken(hero.key, token.key)}
+                      aria-pressed={!remaining}
+                      aria-label={`${hero.label} ${token.label} 토큰 ${
+                        remaining ? "남음" : "사용됨"
+                      }`}
+                    >
+                      <img src={asset(token.icon)} alt="" />
+                      <span>{remaining ? "남음" : "사용"}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </article>
+          ))}
+        </div>
+
+        <div className="extra-token-rows">
+          <article className="extra-token-row event-row">
+            <div>
+              <span className="round-token event-token">
+                <img src={asset("/assets/icons/special.png")} alt="" />
+              </span>
+              <div>
+                <strong>이벤트</strong>
+                <small>이벤트 카드가 공개되면 끄기</small>
+              </div>
+            </div>
+            <div className="small-token-list">
+              {state.eventTokens.length ? (
+                state.eventTokens.map((remaining, index) => (
+                  <button
+                    key={index}
+                    type="button"
+                    className={remaining ? "remaining" : "spent"}
+                    onClick={() => onEventToken(index)}
+                    aria-label={`이벤트 토큰 ${index + 1}, ${
+                      remaining ? "남음" : "사용됨"
+                    }`}
+                  >
+                    <img src={asset("/assets/icons/special.png")} alt="" />
+                  </button>
+                ))
+              ) : (
+                <span className="no-tokens">이벤트 카드 없음</span>
+              )}
+            </div>
+          </article>
+
+          {state.novicesEnabled && (
+            <article className="extra-token-row novice-row">
+              <div>
+                <span className="round-token novice-token">
+                  <img src={asset("/assets/heroes/novice.png")} alt="" />
+                </span>
+                <div>
+                  <strong>신참</strong>
+                  <small>소환할 때마다 토큰 켜기</small>
+                </div>
+              </div>
+              <div className="small-token-list novice-token-list">
+                {state.noviceTokens.map((used, index) => (
+                  <button
+                    key={index}
+                    type="button"
+                    className={used ? "used" : "unused"}
+                    onClick={() => onNoviceToken(index)}
+                    aria-label={`신참 토큰 ${index + 1}, ${
+                      used ? "소환됨" : "미사용"
+                    }`}
+                  >
+                    <img src={asset("/assets/heroes/novice.png")} alt="" />
+                  </button>
+                ))}
+              </div>
+            </article>
+          )}
+        </div>
+      </section>
+
+      <section className="play-section memo-section">
+        <div className="section-title compact">
+          <div>
+            <small>NOTES</small>
+            <h2>메모</h2>
+          </div>
+        </div>
+        <textarea
+          value={state.notes}
+          onChange={(event) => onNotes(event.target.value)}
+          placeholder="이번 게임에 필요한 내용을 적어 두세요."
+          aria-label="게임 메모"
+        />
+      </section>
+
+      <div className="result-actions">
+        <button className="fail-action" type="button" onClick={onFail}>
+          실패
+        </button>
+        <button className="clear-action" type="button" onClick={onClear}>
+          클리어
+        </button>
+      </div>
+    </main>
+  );
+}
+
+function RulebookDialog({
   open,
   onClose,
 }: {
   open: boolean;
   onClose: () => void;
 }) {
-  const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
-  const filtered = rulebookSections.filter((section) =>
-    `${section.title} ${section.detail}`.includes(query.trim()),
-  );
-  const pdfUrl = `${asset("/rulebooks/player-rulebook.pdf")}#page=${page}&view=FitH`;
-
   if (!open) return null;
 
   return (
-    <div className="drawer-backdrop" role="presentation" onMouseDown={onClose}>
+    <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
       <section
-        className="rulebook-drawer"
+        className="rulebook-dialog"
         role="dialog"
         aria-modal="true"
         aria-label="통합 플레이어 룰북"
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <header className="drawer-header">
+        <header>
           <div>
-            <p className="eyebrow">언제든 꺼내 보는</p>
-            <h2>통합 플레이어 룰북</h2>
+            <small>35쪽 통합본</small>
+            <h2>플레이어 룰북</h2>
           </div>
-          <button
-            className="icon-button"
-            type="button"
-            onClick={onClose}
-            aria-label="룰북 닫기"
-            data-testid="close-rulebook"
-          >
+          <button type="button" onClick={onClose} aria-label="룰북 닫기">
             ×
           </button>
         </header>
-        <div className="rulebook-layout">
-          <aside className="rulebook-index">
-            <label className="search-field">
-              <span>⌕</span>
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="규칙 이름 찾기"
-                aria-label="룰북 색인 검색"
-              />
-            </label>
-            <div className="rulebook-cover">
-              <img
-                src={asset("/assets/rulebook-cover-01.jpg")}
-                alt="통합 플레이어 룰북 표지"
-              />
-              <div>
-                <strong>35쪽 통합본</strong>
-                <span>기본 · 보스 배틀 · 길드 마스터</span>
-              </div>
-            </div>
-            <nav className="rulebook-section-list" aria-label="룰북 바로가기">
-              {filtered.map((section) => (
-                <button
-                  key={section.title}
-                  className={page === section.page ? "active" : ""}
-                  type="button"
-                  onClick={() => setPage(section.page)}
-                >
-                  <span>
-                    <strong>{section.title}</strong>
-                    <small>{section.detail}</small>
-                  </span>
-                  <b>{section.page}</b>
-                </button>
-              ))}
-            </nav>
+        <div className="rulebook-body">
+          <nav aria-label="룰북 목차">
+            {rulebookSections.map((section) => (
+              <button
+                key={section.title}
+                type="button"
+                className={page === section.page ? "active" : ""}
+                onClick={() => setPage(section.page)}
+              >
+                <span>
+                  <strong>{section.title}</strong>
+                  <small>{section.detail}</small>
+                </span>
+                <i>{section.page}</i>
+              </button>
+            ))}
+          </nav>
+          <div className="rulebook-viewer">
+            <iframe
+              title={`플레이어 룰북 ${page}쪽`}
+              src={`${asset(
+                "/rulebooks/player-rulebook.pdf",
+              )}#page=${page}&view=FitH`}
+            />
             <a
-              className="secondary-button full"
-              href={pdfUrl}
+              href={`${asset(
+                "/rulebooks/player-rulebook.pdf",
+              )}#page=${page}&view=FitH`}
               target="_blank"
               rel="noreferrer"
             >
               새 창에서 크게 보기 ↗
             </a>
-          </aside>
-          <div className="pdf-stage">
-            <div className="pdf-stage-bar">
-              <span>{page}쪽부터 보기</span>
-              <span>PDF</span>
-            </div>
-            <iframe title="통합 플레이어 룰북 PDF" src={pdfUrl} />
           </div>
         </div>
       </section>
@@ -261,836 +902,66 @@ function RulebookDrawer({
   );
 }
 
-function ChronicleView({
-  state,
-  selectedStage,
-  onSelectStage,
-  onResult,
-  onSetCurrent,
-  onGoSetup,
-  onGoPlay,
+function RewardDialog({
+  chapter,
+  unlocked,
+  announcement,
+  onClose,
 }: {
-  state: AppState;
-  selectedStage: Stage;
-  onSelectStage: (id: number) => void;
-  onResult: (id: number, result: Result) => void;
-  onSetCurrent: (id: number) => void;
-  onGoSetup: () => void;
-  onGoPlay: () => void;
+  chapter: Chapter | null;
+  unlocked: boolean;
+  announcement: boolean;
+  onClose: () => void;
 }) {
-  const current = stageById[state.currentStageId];
-  const selectedChapter = getChapter(selectedStage.id);
-  const position = getChronologyPosition(selectedStage.id);
-  const selectedIndex = selectedChapter.stageIds.indexOf(selectedStage.id);
-  const priorLosses = selectedChapter.stageIds
-    .slice(0, selectedIndex)
-    .filter((id) => state.results[id] === "loss").length;
-
+  if (!chapter) return null;
   return (
-    <div className="view chronicle-view">
-      <section className="chronicle-hero">
-        <div className="hero-copy">
-          <p className="eyebrow">연대기 순서 · {position + 1}/20</p>
-          <h1>
-            영웅은 몰라도,
-            <br />
-            <em>우리는 순서를 안다.</em>
-          </h1>
-          <p className="hero-description">
-            기본 번호가 아닌 공식 연대기 다섯 챕터의 흐름대로 기록합니다.
-            패배 페널티와 해금 능력도 다음 게임까지 이어집니다.
-          </p>
-          <div className="hero-actions">
-            <button className="primary-button" type="button" onClick={onGoPlay}>
-              현재 게임 이어하기
-              <span>시나리오 {current.id}</span>
-            </button>
-            <button
-              className="text-button"
-              type="button"
-              onClick={onGoSetup}
-            >
-              세팅부터 확인 →
-            </button>
-          </div>
-        </div>
-        <div className="hero-art" aria-hidden="true">
-          <div className="room-card room-one">
-            <img src={asset("/assets/rooms/library.png")} alt="" />
-          </div>
-          <div className="room-card room-two">
-            <img src={asset("/assets/rooms/treasury.png")} alt="" />
-          </div>
-          <div className="room-card room-three">
-            <img src={asset("/assets/rooms/sewer.png")} alt="" />
-          </div>
-          <div className="quest-seal">
-            <small>현재 원정</small>
-            <strong>{String(current.id).padStart(2, "0")}</strong>
-            <span>{current.title}</span>
-          </div>
-        </div>
-      </section>
-
-      <section className="timeline-section">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">THE CHRONICLE</p>
-            <h2>다섯 개의 챕터</h2>
-          </div>
-          <p>점을 누르면 시나리오 장부가 열립니다.</p>
-        </div>
-        <div className="chapter-timeline">
-          {chapters.map((chapter) => {
-            const unlocked =
-              state.results[chapter.stageIds[chapter.stageIds.length - 1]] ===
-              "win";
-            return (
-              <article className="chapter-row" key={chapter.id}>
-                <header>
-                  <span className="chapter-number">0{chapter.id}</span>
-                  <div>
-                    <h3>{chapter.title}</h3>
-                    <p>{chapter.subtitle}</p>
-                  </div>
-                  <ChapterProgress chapter={chapter} state={state} />
-                </header>
-                <div className="stage-rail">
-                  {chapter.stageIds.map((id, index) => {
-                    const stage = stageById[id];
-                    const result = state.results[id];
-                    const isCurrent = state.currentStageId === id;
-                    const isSelected = selectedStage.id === id;
-                    return (
-                      <button
-                        key={id}
-                        type="button"
-                        onClick={() => onSelectStage(id)}
-                        className={[
-                          "stage-stop",
-                          result ?? "",
-                          isCurrent ? "current" : "",
-                          isSelected ? "selected" : "",
-                        ].join(" ")}
-                        aria-label={`연대기 ${chapter.id}장 ${index + 1}, 시나리오 ${id} ${stage.title}`}
-                        data-testid={`stage-${id}`}
-                      >
-                        <i>{result === "win" ? "✓" : result === "loss" ? "×" : id}</i>
-                        <span>
-                          <small>{index + 1}막</small>
-                          <strong>{stage.title}</strong>
-                        </span>
-                      </button>
-                    );
-                  })}
-                  <div className={`reward-node ${unlocked ? "unlocked" : ""}`}>
-                    <i>{unlocked ? "✦" : "◇"}</i>
-                    <span>
-                      <small>{unlocked ? "해금 완료" : "챕터 보상"}</small>
-                      <strong>{chapter.reward}</strong>
-                    </span>
-                  </div>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      </section>
-
-      <section className="ledger-detail">
-        <div className="detail-number" aria-hidden="true">
-          {String(selectedStage.id).padStart(2, "0")}
-        </div>
-        <div className="detail-copy">
-          <p className="eyebrow">
-            {selectedChapter.id}장 · {selectedIndex + 1}막
-          </p>
-          <h2>{selectedStage.title}</h2>
-          <p>{selectedStage.story}</p>
-          <div className="tag-row">
-            {selectedStage.tags.map((tag) => (
-              <span key={tag}>{tag}</span>
-            ))}
-          </div>
-        </div>
-        <div className="detail-status">
-          <p>결과 기록</p>
-          <div className="result-segment" data-testid="result-controls">
-            <button
-              type="button"
-              className={state.results[selectedStage.id] === "win" ? "active win" : ""}
-              onClick={() => onResult(selectedStage.id, "win")}
-            >
-              승리
-            </button>
-            <button
-              type="button"
-              className={state.results[selectedStage.id] === "loss" ? "active loss" : ""}
-              onClick={() => onResult(selectedStage.id, "loss")}
-            >
-              패배
-            </button>
-            <button
-              type="button"
-              className={!state.results[selectedStage.id] ? "active" : ""}
-              onClick={() => onResult(selectedStage.id, null)}
-            >
-              미정
-            </button>
-          </div>
-          <div className="penalty-note">
-            <span>다음 시작 페널티</span>
-            <strong>−{priorLosses}장</strong>
-            <small>이 챕터에서 앞서 패배한 횟수</small>
-          </div>
-          {state.currentStageId !== selectedStage.id && (
-            <button
-              type="button"
-              className="secondary-button full"
-              onClick={() => onSetCurrent(selectedStage.id)}
-            >
-              현재 원정으로 설정
-            </button>
-          )}
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function StageSelector({
-  selectedId,
-  onSelect,
-}: {
-  selectedId: number;
-  onSelect: (id: number) => void;
-}) {
-  return (
-    <div className="stage-selector" aria-label="연대기 시나리오 선택">
-      {chapters.map((chapter) => (
-        <div className="stage-selector-group" key={chapter.id}>
-          <small>{chapter.id}장</small>
-          {chapter.stageIds.map((id) => (
-            <button
-              type="button"
-              key={id}
-              className={selectedId === id ? "active" : ""}
-              onClick={() => onSelect(id)}
-              aria-label={`시나리오 ${id} ${stageById[id].title}`}
-            >
-              {id}
-            </button>
-          ))}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function SetupView({
-  state,
-  selectedStage,
-  onSelectStage,
-  onToggleChecklist,
-  onSetCurrent,
-  onGoPlay,
-}: {
-  state: AppState;
-  selectedStage: Stage;
-  onSelectStage: (id: number) => void;
-  onToggleChecklist: (stageId: number, index: number) => void;
-  onSetCurrent: (id: number) => void;
-  onGoPlay: () => void;
-}) {
-  const checks = state.checklist[selectedStage.id] ?? [];
-  const complete = selectedStage.setup.every((_, index) => checks[index]);
-  const chapter = getChapter(selectedStage.id);
-
-  return (
-    <div className="view setup-view">
-      <header className="page-intro">
-        <div>
-          <p className="eyebrow">DUNGEON SETUP</p>
-          <h1>책자를 펼치기 전에,<br />필요한 것만 정확히.</h1>
-        </div>
-        <p>
-          연대기 순서로 시나리오를 고르면 스토리, 금지 클랜, 준비물,
-          특수 규칙과 던전책자 원문이 한 화면에 맞춰집니다.
-        </p>
-      </header>
-
-      <StageSelector
-        selectedId={selectedStage.id}
-        onSelect={onSelectStage}
-      />
-
-      <section className="setup-stage">
-        <div className="page-preview">
-          <div className="page-preview-frame">
-            <img
-              src={asset(
-                `/assets/dungeon-pages/stage-${String(selectedStage.page).padStart(2, "0")}.jpg`,
-              )}
-              alt={`던전 책자 ${selectedStage.page}쪽 ${selectedStage.title}`}
-            />
-          </div>
-          <a
-            className="page-link"
-            href={`${asset("/rulebooks/dungeon-book.pdf")}#page=${selectedStage.page}&view=FitH`}
-            target="_blank"
-            rel="noreferrer"
-          >
-            던전책자 {selectedStage.page}쪽 열기
-            <span>↗</span>
-          </a>
-        </div>
-
-        <div className="setup-content">
-          <div className="scenario-title">
-            <span>{String(selectedStage.id).padStart(2, "0")}</span>
-            <div>
-              <p>{chapter.id}장 · {chapter.title}</p>
-              <h2>{selectedStage.title}</h2>
-            </div>
-          </div>
-          <p className="story-lead">{selectedStage.story}</p>
-          <div className="gimmick-banner">
-            <span>이번 판의 핵심</span>
-            <strong>{selectedStage.highlight}</strong>
-          </div>
-
-          {selectedStage.clanBan && (
-            <div className="ban-notice">
-              <span>선택 불가 클랜</span>
-              <strong>{selectedStage.clanBan}</strong>
-            </div>
-          )}
-
-          <div className="setup-columns">
-            <section className="checklist-panel">
-              <div className="panel-heading">
-                <div>
-                  <p className="eyebrow">PRE-FLIGHT</p>
-                  <h3>세팅 체크리스트</h3>
-                </div>
-                <span className={complete ? "complete" : ""}>
-                  {checks.filter(Boolean).length}/{selectedStage.setup.length}
-                </span>
-              </div>
-              <div className="checklist">
-                {selectedStage.setup.map((item, index) => (
-                  <label key={item} className={checks[index] ? "checked" : ""}>
-                    <input
-                      type="checkbox"
-                      checked={Boolean(checks[index])}
-                      onChange={() =>
-                        onToggleChecklist(selectedStage.id, index)
-                      }
-                    />
-                    <i>{checks[index] ? "✓" : index + 1}</i>
-                    <span>{item}</span>
-                  </label>
-                ))}
-              </div>
-            </section>
-
-            <section className="rules-panel">
-              <div className="panel-heading">
-                <div>
-                  <p className="eyebrow">LIVE RULES</p>
-                  <h3>기믹 미리보기</h3>
-                </div>
-              </div>
-              <div className="compact-rules">
-                {selectedStage.rules.map((rule) => (
-                  <article key={`${rule.kind}-${rule.title}`}>
-                    <span data-kind={rule.kind}>{rule.kind}</span>
-                    <div>
-                      <strong>{rule.title}</strong>
-                      <p>{rule.text}</p>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </section>
-          </div>
-
-          <div className="setup-actions">
-            {state.currentStageId !== selectedStage.id && (
-              <button
-                className="secondary-button"
-                type="button"
-                onClick={() => onSetCurrent(selectedStage.id)}
-              >
-                현재 원정으로 설정
-              </button>
-            )}
-            <button className="primary-button" type="button" onClick={onGoPlay}>
-              {complete ? "세팅 완료 · 플레이 시작" : "플레이 보조로 이동"}
-              <span>기록 자동 저장</span>
-            </button>
-          </div>
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function PlayView({
-  state,
-  currentStage,
-  onDifficulty,
-  onWave,
-  onConsumeToken,
-  onAdjustToken,
-  onSaveTokenStart,
-  onResetWave,
-  onNotes,
-  onOpenRulebook,
-}: {
-  state: AppState;
-  currentStage: Stage;
-  onDifficulty: (difficulty: Difficulty) => void;
-  onWave: (wave: 1 | 2) => void;
-  onConsumeToken: (key: TokenKey) => void;
-  onAdjustToken: (key: TokenKey, delta: number) => void;
-  onSaveTokenStart: () => void;
-  onResetWave: () => void;
-  onNotes: (value: string) => void;
-  onOpenRulebook: () => void;
-}) {
-  const [editingTokens, setEditingTokens] = useState(false);
-  const [rulesOpen, setRulesOpen] = useState(true);
-  const drawCount =
-    state.wave === 1
-      ? difficultyMeta[state.difficulty].wave1
-      : difficultyMeta[state.difficulty].wave2;
-  const remainingTotal = Object.values(state.tokenRemaining).reduce(
-    (sum, value) => sum + value,
-    0,
-  );
-  const startTotal = Object.values(state.tokenStart).reduce(
-    (sum, value) => sum + value,
-    0,
-  );
-  const exhaustedTotal = Math.max(0, startTotal - remainingTotal);
-
-  return (
-    <div className="view play-view">
-      <header className="play-header">
-        <div>
-          <p className="eyebrow">LIVE AT THE TABLE</p>
-          <h1>테이블 위는 게임만.<br />계산은 장부에게.</h1>
-        </div>
-        <button
-          className="rulebook-trigger"
-          type="button"
-          onClick={onOpenRulebook}
-          data-testid="open-rulebook"
-        >
-          <span>▤</span>
-          통합 룰북
-          <small>언제든 열기</small>
-        </button>
-      </header>
-
-      <section className="play-command">
-        <div className="wave-control">
-          <div className="control-title">
-            <span>현재 습격</span>
-            <strong>길드 카드 {drawCount}장</strong>
-          </div>
-          <div className="difficulty-control">
-            {(Object.keys(difficultyMeta) as Difficulty[]).map((key) => (
-              <button
-                type="button"
-                key={key}
-                className={state.difficulty === key ? "active" : ""}
-                onClick={() => onDifficulty(key)}
-              >
-                {difficultyMeta[key].label}
-              </button>
-            ))}
-          </div>
-          <div className="wave-switch">
-            <button
-              type="button"
-              className={state.wave === 1 ? "active" : ""}
-              onClick={() => onWave(1)}
-            >
-              <span>웨이브</span>
-              <strong>1</strong>
-            </button>
-            <i>→</i>
-            <button
-              type="button"
-              className={state.wave === 2 ? "active" : ""}
-              onClick={() => onWave(2)}
-            >
-              <span>웨이브</span>
-              <strong>2</strong>
-            </button>
-          </div>
-        </div>
-
-        <div className="current-gimmick">
-          <div className="gimmick-index">
-            <span>시나리오</span>
-            <strong>{String(currentStage.id).padStart(2, "0")}</strong>
-          </div>
-          <div>
-            <p>{currentStage.title}</p>
-            <h2>{currentStage.highlight}</h2>
-            <div className="tag-row">
-              {currentStage.tags.map((tag) => (
-                <span key={tag}>{tag}</span>
-              ))}
-            </div>
-          </div>
-          <a
-            href={`${asset("/rulebooks/dungeon-book.pdf")}#page=${currentStage.page}&view=FitH`}
-            target="_blank"
-            rel="noreferrer"
-          >
-            책자 {currentStage.page}쪽 ↗
-          </a>
-        </div>
-      </section>
-
-      <section className="token-board" data-testid="token-board">
-        <header>
-          <div>
-            <p className="eyebrow">UNDERGROUND MARKET</p>
-            <h2>침입 토큰 카운터</h2>
-            <p>
-              길드 카드를 공개하면 일치하는 방 기호를 누르세요. 남은 길드
-              카드의 방향이 바로 보입니다.
-            </p>
-          </div>
-          <div className="token-summary">
-            <span>
-              남음 <strong>{remainingTotal}</strong>
-            </span>
-            <i />
-            <span>
-              소진 <strong>{exhaustedTotal}</strong>
-            </span>
-          </div>
-        </header>
-
-        <div className="token-lanes">
-          {tokenMeta.map((token) => {
-            const remaining = state.tokenRemaining[token.key];
-            const exhausted = Math.max(
-              0,
-              state.tokenStart[token.key] - remaining,
-            );
-            return (
-              <article
-                className={`token-lane ${token.tone}`}
-                key={token.key}
-                data-testid={`token-${token.key}`}
-              >
-                <div className="token-label">
-                  <span className="token-symbol">
-                    <AppIcon path={token.icon} alt="" />
-                  </span>
-                  <div>
-                    <strong>{token.label}</strong>
-                    <small>{token.rooms}</small>
-                  </div>
-                </div>
-                {editingTokens ? (
-                  <div className="token-editor">
-                    <button
-                      type="button"
-                      onClick={() => onAdjustToken(token.key, -1)}
-                      aria-label={`${token.label} 시작 수량 줄이기`}
-                    >
-                      −
-                    </button>
-                    <strong>{remaining}</strong>
-                    <button
-                      type="button"
-                      onClick={() => onAdjustToken(token.key, 1)}
-                      aria-label={`${token.label} 시작 수량 늘리기`}
-                    >
-                      +
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    className="token-tap"
-                    type="button"
-                    onClick={() => onConsumeToken(token.key)}
-                    disabled={remaining === 0}
-                    aria-label={`${token.label} 침입 토큰 소진, ${remaining}개 남음`}
-                  >
-                    <span>남음</span>
-                    <strong>{remaining}</strong>
-                    <small>탭하여 소진</small>
-                  </button>
-                )}
-                <div className="spent-pips" aria-label={`${exhausted}개 소진`}>
-                  {Array.from({
-                    length: Math.min(state.tokenStart[token.key], 8),
-                  }).map((_, index) => (
-                    <i
-                      key={index}
-                      className={index < exhausted ? "spent" : ""}
-                    />
-                  ))}
-                </div>
-              </article>
-            );
-          })}
-        </div>
-
-        <footer className="token-board-footer">
-          <p>
-            {editingTokens
-              ? "시장 매트에 실제로 놓은 토큰 수와 같게 맞추세요."
-              : "신참 토큰은 웨이브 1에 별도로 소진 더미에 추가합니다."}
-          </p>
-          <div>
-            <button
-              className="text-button"
-              type="button"
-              onClick={() => {
-                if (editingTokens) onSaveTokenStart();
-                setEditingTokens((value) => !value);
-              }}
-            >
-              {editingTokens ? "시작 수량 저장" : "시작 수량 맞추기"}
-            </button>
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={onResetWave}
-            >
-              웨이브 토큰 복귀
-            </button>
-          </div>
-        </footer>
-      </section>
-
-      <section className="live-rules">
-        <header>
-          <div>
-            <p className="eyebrow">STAGE MECHANICS</p>
-            <h2>지금 적용 중인 기믹</h2>
-          </div>
-          <button
-            className="text-button"
-            type="button"
-            onClick={() => setRulesOpen((value) => !value)}
-          >
-            {rulesOpen ? "접기 ↑" : "펼치기 ↓"}
-          </button>
-        </header>
-        {rulesOpen && (
-          <div className="live-rule-grid">
-            {currentStage.rules.map((rule, index) => (
-              <article key={`${rule.kind}-${rule.title}`}>
-                <span className="rule-order">
-                  {String(index + 1).padStart(2, "0")}
-                </span>
-                <div>
-                  <small data-kind={rule.kind}>{rule.kind}</small>
-                  <h3>{rule.title}</h3>
-                  <p>{rule.text}</p>
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section className="table-notes">
-        <div>
-          <p className="eyebrow">SCRATCHPAD</p>
-          <h2>이번 판 메모</h2>
-          <p>남은 자원, 잊기 쉬운 발동 조건, 다음 차례 계획을 적어 두세요.</p>
-        </div>
-        <textarea
-          value={state.notes}
-          onChange={(event) => onNotes(event.target.value)}
-          placeholder="예: 금고 동전 2개 유지 · 다음 사서 카드 전에 책 1개 이동"
-          aria-label="이번 판 메모"
-        />
-      </section>
-
-      <button
-        className="floating-rulebook"
-        type="button"
-        onClick={onOpenRulebook}
-        aria-label="통합 룰북 열기"
+    <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
+      <section
+        className="reward-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${chapter.reward} 능력`}
+        onMouseDown={(event) => event.stopPropagation()}
       >
-        ▤ <span>룰북</span>
-      </button>
-    </div>
-  );
-}
-
-function RecordsView({
-  state,
-  onExport,
-  onImport,
-  onRequestReset,
-}: {
-  state: AppState;
-  onExport: () => void;
-  onImport: (event: ChangeEvent<HTMLInputElement>) => void;
-  onRequestReset: () => void;
-}) {
-  const fileInput = useRef<HTMLInputElement>(null);
-  const wins = Object.values(state.results).filter((value) => value === "win").length;
-  const losses = Object.values(state.results).filter(
-    (value) => value === "loss",
-  ).length;
-  const unlocked = chapters.filter(
-    (chapter) =>
-      state.results[chapter.stageIds[chapter.stageIds.length - 1]] === "win",
-  );
-
-  return (
-    <div className="view records-view">
-      <header className="page-intro">
-        <div>
-          <p className="eyebrow">THE ARCHIVE</p>
-          <h1>기록은 남고,<br />던전은 계속된다.</h1>
-        </div>
-        <p>
-          모든 진행 상황은 이 기기에 자동 저장됩니다. 다른 기기로 옮기거나
-          브라우저 데이터를 정리하기 전에는 백업 파일을 받아 두세요.
-        </p>
-      </header>
-
-      <section className="record-stats">
-        <article>
-          <span>완료한 원정</span>
-          <strong>{wins + losses}<small>/20</small></strong>
-        </article>
-        <article>
-          <span>승리</span>
-          <strong>{wins}</strong>
-        </article>
-        <article>
-          <span>패배</span>
-          <strong>{losses}</strong>
-        </article>
-        <article>
-          <span>해금 능력</span>
-          <strong>{unlocked.length}<small>/5</small></strong>
-        </article>
-      </section>
-
-      <section className="archive-grid">
-        <div className="rewards-archive">
-          <div className="section-heading compact">
-            <div>
-              <p className="eyebrow">CHAPTER REWARDS</p>
-              <h2>해금한 능력</h2>
-            </div>
-          </div>
-          <div className="reward-list">
-            {chapters.map((chapter) => {
-              const isUnlocked = unlocked.some((item) => item.id === chapter.id);
-              return (
-                <article
-                  key={chapter.id}
-                  className={isUnlocked ? "unlocked" : ""}
-                >
-                  <i>{isUnlocked ? "✦" : "◇"}</i>
-                  <div>
-                    <small>{chapter.id}장 · {chapter.title}</small>
-                    <h3>{chapter.reward}</h3>
-                    <p>{chapter.rewardText}</p>
-                  </div>
-                  <span>{isUnlocked ? "해금" : "잠김"}</span>
-                </article>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="backup-panel">
-          <p className="eyebrow">SAFE KEEPING</p>
-          <h2>진행 기록 백업</h2>
-          <p>
-            자동 저장은 현재 브라우저에 남습니다. 백업 파일 하나면 컴퓨터,
-            아이패드, 모바일 사이에서도 기록을 옮길 수 있습니다.
-          </p>
-          <div className="backup-illustration" aria-hidden="true">
-            <div className="save-orb">✓</div>
-            <span>마지막 저장</span>
-            <strong>{formatSavedAt(state.updatedAt)}</strong>
-          </div>
-          <button className="primary-button full" type="button" onClick={onExport}>
-            백업 파일 내보내기
-            <span>JSON · 개인 기기에 저장</span>
-          </button>
-          <button
-            className="secondary-button full"
-            type="button"
-            onClick={() => fileInput.current?.click()}
-          >
-            백업 파일 가져오기
-          </button>
-          <input
-            ref={fileInput}
-            className="visually-hidden"
-            type="file"
-            accept="application/json,.json"
-            onChange={onImport}
-          />
-          <button
-            className="danger-text-button"
-            type="button"
-            onClick={onRequestReset}
-          >
-            모든 기록 초기화
-          </button>
-        </div>
+        <small>
+          {announcement
+            ? `${chapter.id}장 완료 · 능력 해금`
+            : unlocked
+              ? "해금된 연대기 능력"
+              : "챕터 완료 시 해금"}
+        </small>
+        <h2>{chapter.reward}</h2>
+        <p>{chapter.rewardText}</p>
+        <button type="button" onClick={onClose}>
+          확인
+        </button>
       </section>
     </div>
   );
 }
 
 export default function Home() {
-  const [view, setView] = useState<View>("chronicle");
   const [state, setState] = useState<AppState>(defaultState);
-  const [selectedStageId, setSelectedStageId] = useState(1);
   const [loaded, setLoaded] = useState(false);
+  const [editingProgress, setEditingProgress] = useState(false);
   const [rulebookOpen, setRulebookOpen] = useState(false);
-  const [resetOpen, setResetOpen] = useState(false);
-  const [toast, setToast] = useState("");
+  const [rewardChapter, setRewardChapter] = useState<Chapter | null>(null);
+  const [rewardAnnouncement, setRewardAnnouncement] = useState(false);
+  const [returnHomeAfterReward, setReturnHomeAfterReward] = useState(false);
 
   useEffect(() => {
-    let hydratedState = defaultState;
-    let hydratedStageId = 1;
-    let hydrationMessage = "";
-
+    let hydrated = defaultState;
     try {
-      const stored = window.localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored) as Partial<AppState>;
-        hydratedState = {
-          ...defaultState,
-          ...parsed,
-          tokenStart: { ...initialTokens, ...parsed.tokenStart },
-          tokenRemaining: { ...initialTokens, ...parsed.tokenRemaining },
-        };
-        if (parsed.currentStageId) hydratedStageId = parsed.currentStageId;
-      }
+      const stored =
+        window.localStorage.getItem(STORAGE_KEY) ??
+        window.localStorage.getItem(LEGACY_STORAGE_KEY);
+      if (stored) hydrated = migrateStoredState(JSON.parse(stored));
     } catch {
-      hydrationMessage = "저장 기록을 읽지 못해 새 장부로 시작했습니다.";
+      hydrated = defaultState;
     }
 
     const frame = window.requestAnimationFrame(() => {
-      setState(hydratedState);
-      setSelectedStageId(hydratedStageId);
-      if (hydrationMessage) setToast(hydrationMessage);
+      setState(hydrated);
       setLoaded(true);
     });
 
@@ -1099,32 +970,20 @@ export default function Home() {
         .register(`${BASE_PATH}/sw.js`)
         .catch(() => undefined);
     }
-
     return () => window.cancelAnimationFrame(frame);
   }, []);
 
   useEffect(() => {
     if (!loaded) return;
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [state, loaded]);
-
-  useEffect(() => {
-    if (!toast) return;
-    const timeout = window.setTimeout(() => setToast(""), 2800);
-    return () => window.clearTimeout(timeout);
-  }, [toast]);
+  }, [loaded, state]);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => window.scrollTo(0, 0));
     return () => window.cancelAnimationFrame(frame);
-  }, [view]);
+  }, [state.screen]);
 
-  const selectedStage = stageById[selectedStageId] ?? stageById[1];
-  const currentStage = stageById[state.currentStageId] ?? stageById[1];
-  const completed = useMemo(
-    () => Object.values(state.results).filter(Boolean).length,
-    [state.results],
-  );
+  const activeStage = useMemo(() => stageById[state.stageId], [state.stageId]);
 
   const update = (recipe: (previous: AppState) => AppState) => {
     setState((previous) => ({
@@ -1133,277 +992,235 @@ export default function Home() {
     }));
   };
 
-  const setCurrentStage = (id: number) => {
-    update((previous) => ({
-      ...previous,
-      currentStageId: id,
-      notes: previous.currentStageId === id ? previous.notes : "",
-    }));
-    setSelectedStageId(id);
-    setToast(`시나리오 ${id}을 현재 원정으로 설정했습니다.`);
+  const goHome = () => {
+    update((previous) => ({ ...previous, screen: "home" }));
+    setEditingProgress(false);
   };
 
-  const setResult = (id: number, result: Result) => {
+  const startMode = (mode: GameMode) => {
+    const stage =
+      mode === "chronicle"
+        ? nextChronicleStage(state.completions)
+        : stageById[state.stageId] ?? stageById[1];
     update((previous) => ({
       ...previous,
-      results: { ...previous.results, [id]: result },
+      mode,
+      stageId: stage.id,
+      screen: mode === "chronicle" ? "start" : "select",
+      notes: "",
     }));
   };
 
-  const toggleChecklist = (stageId: number, index: number) => {
+  const setDifficulty = (difficulty: Difficulty) => {
+    update((previous) => ({ ...previous, difficulty }));
+  };
+
+  const prepareSetup = () => {
+    const stage = stageById[state.stageId];
+    update((previous) => ({
+      ...previous,
+      screen: "setup",
+      checklist: {
+        ...previous.checklist,
+        [stage.id]: stage.setup.map(() => false),
+      },
+      heroTokens: freshHeroTokens(),
+      eventTokens: Array.from(
+        { length: eventCardCount(stage) },
+        () => true,
+      ),
+      noviceTokens: previous.novicesEnabled
+        ? Array.from(
+            { length: difficulties[previous.difficulty].noviceCards },
+            () => false,
+          )
+        : [],
+      notes: "",
+    }));
+  };
+
+  const toggleChecklist = (index: number) => {
     update((previous) => {
-      const next = [...(previous.checklist[stageId] ?? [])];
-      next[index] = !next[index];
+      const current =
+        previous.checklist[previous.stageId] ??
+        stageById[previous.stageId].setup.map(() => false);
       return {
         ...previous,
-        checklist: { ...previous.checklist, [stageId]: next },
+        checklist: {
+          ...previous.checklist,
+          [previous.stageId]: current.map((value, itemIndex) =>
+            itemIndex === index ? !value : value,
+          ),
+        },
       };
     });
   };
 
-  const consumeToken = (key: TokenKey) => {
+  const toggleHeroToken = (hero: HeroKey, token: RoomTokenKey) => {
     update((previous) => ({
       ...previous,
-      tokenRemaining: {
-        ...previous.tokenRemaining,
-        [key]: Math.max(0, previous.tokenRemaining[key] - 1),
+      heroTokens: {
+        ...previous.heroTokens,
+        [hero]: {
+          ...previous.heroTokens[hero],
+          [token]: !previous.heroTokens[hero][token],
+        },
       },
     }));
   };
 
-  const adjustToken = (key: TokenKey, delta: number) => {
+  const toggleArrayToken = (
+    key: "eventTokens" | "noviceTokens",
+    index: number,
+  ) => {
     update((previous) => ({
       ...previous,
-      tokenRemaining: {
-        ...previous.tokenRemaining,
-        [key]: Math.max(0, Math.min(20, previous.tokenRemaining[key] + delta)),
-      },
+      [key]: previous[key].map((value, itemIndex) =>
+        itemIndex === index ? !value : value,
+      ),
     }));
   };
 
-  const saveTokenStart = () => {
-    update((previous) => ({
-      ...previous,
-      tokenStart: { ...previous.tokenRemaining },
-    }));
-    setToast("현재 수량을 웨이브 시작값으로 저장했습니다.");
-  };
-
-  const resetWave = () => {
-    update((previous) => ({
-      ...previous,
-      tokenRemaining: { ...previous.tokenStart },
-    }));
-    setToast("모든 침입 토큰을 시작 위치로 되돌렸습니다.");
-  };
-
-  const exportState = () => {
-    const payload = {
-      app: "Keep the Ledger",
-      version: 1,
-      exportedAt: new Date().toISOString(),
-      state,
-    };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `keep-the-ledger-${new Date().toISOString().slice(0, 10)}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-    setToast("진행 기록 백업 파일을 만들었습니다.");
-  };
-
-  const importState = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    try {
-      const payload = JSON.parse(await file.text()) as {
-        version?: number;
-        state?: AppState;
-      };
-      if (payload.version !== 1 || !payload.state?.currentStageId) {
-        throw new Error("invalid");
-      }
-      setState({
-        ...defaultState,
-        ...payload.state,
-        tokenStart: { ...initialTokens, ...payload.state.tokenStart },
-        tokenRemaining: { ...initialTokens, ...payload.state.tokenRemaining },
-      });
-      setSelectedStageId(payload.state.currentStageId);
-      setToast("백업 기록을 안전하게 불러왔습니다.");
-    } catch {
-      setToast("이 앱에서 만든 올바른 백업 파일이 아닙니다.");
+  const finishGame = (cleared: boolean) => {
+    if (!cleared || state.mode === "custom") {
+      goHome();
+      return;
     }
-    event.target.value = "";
+
+    const chapter = chapters.find((item) =>
+      item.stageIds.includes(activeStage.id),
+    );
+    const nextCompletions = { ...state.completions, [activeStage.id]: true };
+    const chapterCompleted =
+      chapter?.stageIds.every((id) => nextCompletions[id]) ?? false;
+
+    update((previous) => ({
+      ...previous,
+      completions: nextCompletions,
+      screen: chapterCompleted ? previous.screen : "home",
+    }));
+
+    if (chapterCompleted && chapter) {
+      setRewardChapter(chapter);
+      setRewardAnnouncement(true);
+      setReturnHomeAfterReward(true);
+    }
   };
 
-  const resetState = () => {
-    setState({ ...defaultState, updatedAt: new Date().toISOString() });
-    setSelectedStageId(1);
-    setResetOpen(false);
-    setToast("새 장부로 초기화했습니다.");
+  const closeReward = () => {
+    setRewardChapter(null);
+    setRewardAnnouncement(false);
+    if (returnHomeAfterReward) {
+      setReturnHomeAfterReward(false);
+      goHome();
+    }
   };
 
   return (
-    <div className="app-shell">
-      <aside className="desktop-rail">
-        <button
-          className="brand-mark"
-          type="button"
-          onClick={() => setView("chronicle")}
-          aria-label="Keep the Ledger 홈"
-        >
-          <span>K</span>
-          <i />
+    <div className="site-shell">
+      <header className="app-header">
+        <button className="wordmark" type="button" onClick={goHome}>
+          <strong>KEEP THE LEDGER</strong>
+          <span>던전 원정 장부</span>
         </button>
-        <nav aria-label="주요 메뉴">
-          {viewMeta.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={view === item.id ? "active" : ""}
-              onClick={() => setView(item.id)}
-            >
-              <span>{item.glyph}</span>
-              <small>{item.label}</small>
+        <div className="header-actions">
+          {state.screen === "play" && (
+            <button type="button" onClick={() => setRulebookOpen(true)}>
+              룰북
             </button>
-          ))}
-        </nav>
-        <div className="rail-progress">
-          <span>{completed}</span>
-          <small>/ 20</small>
+          )}
+          {state.screen !== "home" && (
+            <button type="button" onClick={goHome}>
+              홈
+            </button>
+          )}
         </div>
-      </aside>
+      </header>
 
-      <div className="app-body">
-        <header className="topbar">
-          <button
-            className="wordmark"
-            type="button"
-            onClick={() => setView("chronicle")}
-          >
-            <span>KEEP THE LEDGER</span>
-            <small>던전 원정 장부</small>
-          </button>
-          <div className="topbar-status">
-            <span className="autosave-dot" />
-            <span>
-              자동 저장
-              <small>{formatSavedAt(state.updatedAt)}</small>
-            </span>
-          </div>
-        </header>
+      {state.screen === "home" && (
+        <HomeScreen
+          state={state}
+          editing={editingProgress}
+          onMode={startMode}
+          onToggleEditing={() => setEditingProgress((value) => !value)}
+          onToggleStage={(stageId) =>
+            update((previous) => ({
+              ...previous,
+              completions: {
+                ...previous.completions,
+                [stageId]: !previous.completions[stageId],
+              },
+            }))
+          }
+          onReward={(chapter) => {
+            setRewardChapter(chapter);
+            setRewardAnnouncement(false);
+            setReturnHomeAfterReward(false);
+          }}
+        />
+      )}
 
-        <main>
-          {view === "chronicle" && (
-            <ChronicleView
-              state={state}
-              selectedStage={selectedStage}
-              onSelectStage={setSelectedStageId}
-              onResult={setResult}
-              onSetCurrent={setCurrentStage}
-              onGoSetup={() => {
-                setSelectedStageId(state.currentStageId);
-                setView("setup");
-              }}
-              onGoPlay={() => setView("play")}
-            />
-          )}
-          {view === "setup" && (
-            <SetupView
-              state={state}
-              selectedStage={selectedStage}
-              onSelectStage={setSelectedStageId}
-              onToggleChecklist={toggleChecklist}
-              onSetCurrent={setCurrentStage}
-              onGoPlay={() => {
-                if (state.currentStageId !== selectedStage.id) {
-                  setCurrentStage(selectedStage.id);
-                }
-                setView("play");
-              }}
-            />
-          )}
-          {view === "play" && (
-            <PlayView
-              state={state}
-              currentStage={currentStage}
-              onDifficulty={(difficulty) =>
-                update((previous) => ({ ...previous, difficulty }))
-              }
-              onWave={(wave) => update((previous) => ({ ...previous, wave }))}
-              onConsumeToken={consumeToken}
-              onAdjustToken={adjustToken}
-              onSaveTokenStart={saveTokenStart}
-              onResetWave={resetWave}
-              onNotes={(notes) =>
-                update((previous) => ({ ...previous, notes }))
-              }
-              onOpenRulebook={() => setRulebookOpen(true)}
-            />
-          )}
-          {view === "records" && (
-            <RecordsView
-              state={state}
-              onExport={exportState}
-              onImport={importState}
-              onRequestReset={() => setResetOpen(true)}
-            />
-          )}
-        </main>
-      </div>
+      {state.screen === "start" && (
+        <StartScreen
+          state={state}
+          onDifficulty={setDifficulty}
+          onNovices={(novicesEnabled) =>
+            update((previous) => ({ ...previous, novicesEnabled }))
+          }
+          onContinue={prepareSetup}
+        />
+      )}
 
-      <nav className="mobile-nav" aria-label="모바일 메뉴">
-        {viewMeta.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            className={view === item.id ? "active" : ""}
-            onClick={() => setView(item.id)}
-          >
-            <span>{item.glyph}</span>
-            <small>{item.short}</small>
-          </button>
-        ))}
-      </nav>
+      {state.screen === "select" && (
+        <SelectScreen
+          state={state}
+          onStage={(stageId) =>
+            update((previous) => ({ ...previous, stageId }))
+          }
+          onDifficulty={setDifficulty}
+          onNovices={(novicesEnabled) =>
+            update((previous) => ({ ...previous, novicesEnabled }))
+          }
+          onContinue={prepareSetup}
+        />
+      )}
 
-      <RulebookDrawer
+      {state.screen === "setup" && (
+        <SetupScreen
+          state={state}
+          onCheck={toggleChecklist}
+          onPlay={() =>
+            update((previous) => ({ ...previous, screen: "play" }))
+          }
+        />
+      )}
+
+      {state.screen === "play" && (
+        <PlayScreen
+          state={state}
+          onHeroToken={toggleHeroToken}
+          onEventToken={(index) => toggleArrayToken("eventTokens", index)}
+          onNoviceToken={(index) => toggleArrayToken("noviceTokens", index)}
+          onNotes={(notes) =>
+            update((previous) => ({ ...previous, notes }))
+          }
+          onFail={() => finishGame(false)}
+          onClear={() => finishGame(true)}
+        />
+      )}
+
+      <RulebookDialog
         open={rulebookOpen}
         onClose={() => setRulebookOpen(false)}
       />
-
-      {resetOpen && (
-        <div className="confirm-backdrop" role="presentation">
-          <section role="alertdialog" aria-modal="true" aria-label="기록 초기화 확인">
-            <span className="warning-mark">!</span>
-            <h2>장부를 처음부터 시작할까요?</h2>
-            <p>연대기 결과, 세팅 체크, 토큰 수량과 메모가 모두 지워집니다.</p>
-            <div>
-              <button
-                className="secondary-button"
-                type="button"
-                onClick={() => setResetOpen(false)}
-              >
-                취소
-              </button>
-              <button className="danger-button" type="button" onClick={resetState}>
-                모두 초기화
-              </button>
-            </div>
-          </section>
-        </div>
-      )}
-
-      {toast && (
-        <div className="toast" role="status">
-          <span>✓</span>
-          {toast}
-        </div>
-      )}
+      <RewardDialog
+        chapter={rewardChapter}
+        unlocked={
+          rewardChapter?.stageIds.every((id) => state.completions[id]) ?? false
+        }
+        announcement={rewardAnnouncement}
+        onClose={closeReward}
+      />
     </div>
   );
 }

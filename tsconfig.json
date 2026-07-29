@@ -30,5 +30,12 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],
-  "exclude": ["node_modules", "build", "db", "worker"]
+  "exclude": [
+    "node_modules",
+    "build",
+    "db",
+    "worker",
+    "app/page 2.tsx",
+    "app/layout 2.tsx"
+  ]
 }
