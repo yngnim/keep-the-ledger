@@ -1,0 +1,19 @@
+{
+  "name": "Keep the Ledger - 던전 원정 장부",
+  "short_name": "The Ledger",
+  "description": "Keep the Heroes Out 연대기와 플레이 컴패니언",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0c1714",
+  "theme_color": "#0c1714",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "./assets/rooms/treasury.png",
+      "sizes": "226x226",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
