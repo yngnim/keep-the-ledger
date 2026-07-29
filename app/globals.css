@@ -1794,6 +1794,187 @@ small {
   text-decoration: none;
 }
 
+.backup-dialog {
+  width: min(680px, 100%);
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.26);
+}
+
+.backup-dialog > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 78px;
+  padding: 14px 22px;
+  border-bottom: 1px solid var(--line);
+}
+
+.backup-dialog > header small {
+  color: var(--gold);
+  font-weight: 700;
+}
+
+.backup-dialog > header button {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  background: transparent;
+  font-size: 1.3rem;
+  cursor: pointer;
+}
+
+.backup-dialog-body {
+  padding: 22px;
+}
+
+.backup-dialog-body > p:first-child {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.backup-transfer-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.backup-transfer-grid article {
+  display: flex;
+  min-height: 210px;
+  padding: 18px;
+  flex-direction: column;
+  align-items: flex-start;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--surface-soft);
+}
+
+.backup-transfer-grid article > small {
+  color: var(--gold);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.backup-transfer-grid h3 {
+  margin-top: 4px;
+  font-size: 1rem;
+}
+
+.backup-transfer-grid p {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.backup-transfer-grid button,
+.backup-transfer-grid label {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 42px;
+  margin-top: auto;
+  padding: 0 12px;
+  border: 1px solid var(--forest);
+  border-radius: 10px;
+  background: var(--forest);
+  color: white;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.backup-transfer-grid label {
+  background: var(--surface);
+  color: var(--forest);
+}
+
+.backup-transfer-grid input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.backup-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 14px;
+  padding: 14px 15px;
+  border: 1px solid #aabdb1;
+  border-radius: 12px;
+  background: #edf3ef;
+}
+
+.backup-preview > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.backup-preview small,
+.backup-preview span {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.backup-preview strong {
+  overflow: hidden;
+  font-size: 0.86rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.backup-preview button {
+  min-height: 38px;
+  padding: 0 13px;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 9px;
+  background: var(--forest);
+  color: white;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.backup-message {
+  margin-top: 14px;
+  padding: 11px 13px;
+  border-radius: 10px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.backup-message.success {
+  background: #edf3ef;
+  color: var(--forest);
+}
+
+.backup-message.error {
+  background: #f5e9e7;
+  color: #843d36;
+}
+
+.backup-warning {
+  display: block;
+  margin-top: 14px;
+  color: var(--muted);
+  font-size: 0.7rem;
+  line-height: 1.45;
+}
+
 .rulebook-dialog {
   width: min(1500px, 100%);
   height: calc(100vh - 40px);
@@ -2050,6 +2231,19 @@ small {
 
   .novice-count-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .backup-transfer-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .backup-transfer-grid article {
+    min-height: 174px;
+  }
+
+  .backup-preview {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .mode-buttons > button {

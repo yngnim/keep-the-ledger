@@ -21,6 +21,12 @@ type RoomTokenKey = "sword" | "eye" | "bone" | "hat";
 type CompletionMap = Record<number, boolean>;
 type HeroTokenState = Record<HeroKey, Record<RoomTokenKey, boolean>>;
 type NoviceTokenCounts = Record<RoomTokenKey, number>;
+type BackupEnvelope = {
+  format: "keep-the-ledger-backup";
+  version: 1;
+  exportedAt: string;
+  state: AppState;
+};
 
 type AppState = {
   screen: Screen;
@@ -301,6 +307,27 @@ function migrateStoredState(value: unknown): AppState {
   };
 }
 
+function backupStateFrom(value: unknown) {
+  if (!value || typeof value !== "object") {
+    throw new Error("백업 파일의 형식을 확인할 수 없습니다.");
+  }
+
+  const payload = value as Partial<BackupEnvelope> & Record<string, unknown>;
+  const candidate =
+    payload.format === "keep-the-ledger-backup" ? payload.state : payload;
+
+  if (
+    !candidate ||
+    typeof candidate !== "object" ||
+    (!("stageId" in candidate) && !("currentStageId" in candidate)) ||
+    (!("completions" in candidate) && !("results" in candidate))
+  ) {
+    throw new Error("Keep the Ledger 기록 백업 파일이 아닙니다.");
+  }
+
+  return migrateStoredState(candidate);
+}
+
 function FlowSteps({
   mode,
   screen,
@@ -482,6 +509,7 @@ function ChronicleTrack({
   onToggleEditing,
   onToggleStage,
   onStartStage,
+  onBackup,
   onReward,
 }: {
   completions: CompletionMap;
@@ -489,6 +517,7 @@ function ChronicleTrack({
   onToggleEditing: () => void;
   onToggleStage: (stageId: number) => void;
   onStartStage: (stageId: number) => void;
+  onBackup: () => void;
   onReward: (chapter: Chapter) => void;
 }) {
   const completeCount = chronologicalStages.filter(
@@ -504,6 +533,9 @@ function ChronicleTrack({
         </div>
         <div className="track-actions">
           <span>{completeCount} / {chronologicalStages.length} 완료</span>
+          <button type="button" onClick={onBackup}>
+            기록 관리
+          </button>
           <button type="button" onClick={onToggleEditing}>
             {editing ? "수정 완료" : "수정"}
           </button>
@@ -621,6 +653,7 @@ function HomeScreen({
   onToggleEditing,
   onToggleStage,
   onStartStage,
+  onBackup,
   onReward,
 }: {
   state: AppState;
@@ -629,6 +662,7 @@ function HomeScreen({
   onToggleEditing: () => void;
   onToggleStage: (stageId: number) => void;
   onStartStage: (stageId: number) => void;
+  onBackup: () => void;
   onReward: (chapter: Chapter) => void;
 }) {
   return (
@@ -667,6 +701,7 @@ function HomeScreen({
         onToggleEditing={onToggleEditing}
         onToggleStage={onToggleStage}
         onStartStage={onStartStage}
+        onBackup={onBackup}
         onReward={onReward}
       />
     </main>
@@ -1307,6 +1342,177 @@ function RulebookDialog({
   );
 }
 
+function BackupDialog({
+  open,
+  state,
+  onRestore,
+  onClose,
+}: {
+  open: boolean;
+  state: AppState;
+  onRestore: (state: AppState) => void;
+  onClose: () => void;
+}) {
+  const [pending, setPending] = useState<AppState | null>(null);
+  const [pendingName, setPendingName] = useState("");
+  const [message, setMessage] = useState<{
+    tone: "success" | "error";
+    text: string;
+  } | null>(null);
+
+  if (!open) return null;
+
+  const close = () => {
+    setPending(null);
+    setPendingName("");
+    setMessage(null);
+    onClose();
+  };
+
+  const downloadBackup = () => {
+    const exportedAt = new Date().toISOString();
+    const backup: BackupEnvelope = {
+      format: "keep-the-ledger-backup",
+      version: 1,
+      exportedAt,
+      state: { ...state, screen: "home", updatedAt: exportedAt },
+    };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `keep-the-ledger-backup-${exportedAt.slice(0, 10)}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setMessage({ tone: "success", text: "현재 기록을 백업 파일로 저장했습니다." });
+  };
+
+  const readBackup = async (file: File) => {
+    try {
+      const restored = backupStateFrom(JSON.parse(await file.text()));
+      setPending(restored);
+      setPendingName(file.name);
+      setMessage(null);
+    } catch (error) {
+      setPending(null);
+      setPendingName("");
+      setMessage({
+        tone: "error",
+        text:
+          error instanceof Error
+            ? error.message
+            : "백업 파일을 읽을 수 없습니다.",
+      });
+    }
+  };
+
+  const pendingCompleted = pending
+    ? [...chronologicalStages, ...bonusStages].filter(
+        (stage) => pending.completions[stage.id],
+      ).length
+    : 0;
+
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={close}>
+      <section
+        className="backup-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label="기록 백업과 불러오기"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <header>
+          <div>
+            <small>브라우저 저장 기록</small>
+            <h2>기록 관리</h2>
+          </div>
+          <button type="button" onClick={close} aria-label="기록 관리 닫기">
+            ×
+          </button>
+        </header>
+
+        <div className="backup-dialog-body">
+          <p>
+            연대기 진행도와 게임 설정을 파일로 옮길 수 있습니다. 다른
+            기기에서는 같은 파일을 불러오세요.
+          </p>
+
+          <div className="backup-transfer-grid">
+            <article>
+              <small>내보내기</small>
+              <h3>기록 백업</h3>
+              <p>현재 저장된 진행도와 설정을 JSON 파일로 내려받습니다.</p>
+              <button type="button" onClick={downloadBackup}>
+                백업 파일 다운로드
+              </button>
+            </article>
+
+            <article>
+              <small>가져오기</small>
+              <h3>백업 불러오기</h3>
+              <p>다른 기기나 이전 주소에서 내려받은 백업을 선택합니다.</p>
+              <label>
+                백업 파일 선택
+                <input
+                  type="file"
+                  accept=".json,application/json"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) void readBackup(file);
+                    event.target.value = "";
+                  }}
+                />
+              </label>
+            </article>
+          </div>
+
+          {pending && (
+            <div className="backup-preview">
+              <div>
+                <small>불러올 기록</small>
+                <strong>{pendingName}</strong>
+                <span>
+                  완료 시나리오 {pendingCompleted}개 · 난이도{" "}
+                  {difficulties[pending.difficulty].label}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  onRestore(pending);
+                  setPending(null);
+                  setPendingName("");
+                  setMessage({
+                    tone: "success",
+                    text: "백업 기록을 적용했습니다.",
+                  });
+                }}
+              >
+                이 기록 적용
+              </button>
+            </div>
+          )}
+
+          {message && (
+            <p className={`backup-message ${message.tone}`} role="status">
+              {message.text}
+            </p>
+          )}
+
+          <small className="backup-warning">
+            백업을 적용하면 이 브라우저의 현재 기록이 선택한 파일의 기록으로
+            교체됩니다.
+          </small>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function RewardDialog({
   chapter,
   unlocked,
@@ -1355,6 +1561,7 @@ export default function Home() {
   const [state, setState] = useState<AppState>(defaultState);
   const [loaded, setLoaded] = useState(false);
   const [editingProgress, setEditingProgress] = useState(false);
+  const [backupOpen, setBackupOpen] = useState(false);
   const [rulebookOpen, setRulebookOpen] = useState(false);
   const [stagePageOpen, setStagePageOpen] = useState<Stage | null>(null);
   const [resumePlay, setResumePlay] = useState(false);
@@ -1724,6 +1931,7 @@ export default function Home() {
             })
           }
           onStartStage={startChronicleStage}
+          onBackup={() => setBackupOpen(true)}
           onReward={(chapter) => {
             setRewardChapter(chapter);
             setRewardAnnouncement(false);
@@ -1778,6 +1986,22 @@ export default function Home() {
         />
       )}
 
+      <BackupDialog
+        open={backupOpen}
+        state={state}
+        onRestore={(restored) => {
+          setState({
+            ...restored,
+            screen: "home",
+            updatedAt: new Date().toISOString(),
+          });
+          setEditingProgress(false);
+          setResumePlay(false);
+          setRewardChapter(null);
+          setRewardAnnouncement(false);
+        }}
+        onClose={() => setBackupOpen(false)}
+      />
       <RulebookDialog
         open={rulebookOpen}
         onClose={() => setRulebookOpen(false)}

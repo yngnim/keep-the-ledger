@@ -54,6 +54,14 @@ test("ships the real token model, persistence, rulebooks, and static export", as
   assert.match(page, /keep-the-ledger:v2/);
   assert.match(page, /keep-the-ledger:v1/);
   assert.match(page, /window\.localStorage\.setItem/);
+  assert.match(page, /BackupDialog/);
+  assert.match(page, /backupStateFrom/);
+  assert.match(page, /keep-the-ledger-backup/);
+  assert.match(page, /백업 파일 다운로드/);
+  assert.match(page, /백업 파일 선택/);
+  assert.match(page, /new Blob/);
+  assert.match(page, /await file\.text\(\)/);
+  assert.match(page, /accept="\.json,application\/json"/);
   assert.match(page, /navigator\.serviceWorker/);
   assert.match(page, /player-rulebook\.pdf/);
   assert.doesNotMatch(page, /dungeon-book\.pdf/);
@@ -109,7 +117,7 @@ test("ships the real token model, persistence, rulebooks, and static export", as
   assert.match(styles, /grid-template-columns:\s*190px minmax\(0,\s*1fr\)/);
   assert.match(styles, /width:\s*min\(1500px,\s*100%\)/);
   assert.match(styles, /\.rulebook-page-stage img\s*\{[^}]*width:\s*100%/s);
-  assert.match(serviceWorker, /keep-the-ledger-shell-v4/);
+  assert.match(serviceWorker, /keep-the-ledger-shell-v5/);
   assert.match(exportedHtml, /Keep the Ledger/);
 
   await Promise.all([
