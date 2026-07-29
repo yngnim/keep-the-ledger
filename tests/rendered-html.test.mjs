@@ -80,6 +80,13 @@ test("ships the real token model, persistence, rulebooks, and static export", as
   assert.doesNotMatch(page, /zoom=page-width|<iframe/);
   assert.match(data, /stageIds:\s*\[1,\s*4,\s*13,\s*15\]/);
   assert.match(data, /stageIds:\s*\[3,\s*9,\s*19,\s*20\]/);
+  assert.match(data, /stageIds:\s*\[21,\s*22,\s*23,\s*24\]/);
+  assert.match(data, /stageIds:\s*\[28,\s*29,\s*30\]/);
+  assert.match(data, /stageIds:\s*\[31,\s*32,\s*33\]/);
+  assert.match(data, /code:\s*"H1"/);
+  assert.match(data, /title:\s*"산타 베이비"/);
+  assert.match(data, /reward:\s*"고철로봇 설계자"/);
+  assert.match(data, /reward:\s*"비밀 산타"/);
   assert.match(data, /bannedClans:\s*\["도마뱀",\s*"해골"\]/);
   assert.match(data, /bannedClans:\s*\["임프",\s*"슬라임"\]/);
   assert.match(
@@ -97,7 +104,7 @@ test("ships the real token model, persistence, rulebooks, and static export", as
   assert.match(styles, /grid-template-columns:\s*190px minmax\(0,\s*1fr\)/);
   assert.match(styles, /width:\s*min\(1500px,\s*100%\)/);
   assert.match(styles, /\.rulebook-page-stage img\s*\{[^}]*width:\s*100%/s);
-  assert.match(serviceWorker, /keep-the-ledger-shell-v2/);
+  assert.match(serviceWorker, /keep-the-ledger-shell-v3/);
   assert.match(exportedHtml, /Keep the Ledger/);
 
   await Promise.all([
@@ -116,6 +123,18 @@ test("ships the real token model, persistence, rulebooks, and static export", as
       ),
     ),
     access(new URL("../out/assets/dungeon-pages/stage-23.jpg", import.meta.url)),
+    access(
+      new URL(
+        "../out/assets/boss-battle-pages/page-11.webp",
+        import.meta.url,
+      ),
+    ),
+    access(
+      new URL(
+        "../out/assets/boss-battle-pages/page-35.webp",
+        import.meta.url,
+      ),
+    ),
     access(new URL("../out/assets/heroes/warrior.png", import.meta.url)),
     access(new URL("../out/assets/heroes/rogue.png", import.meta.url)),
     access(new URL("../out/assets/heroes/archer.png", import.meta.url)),

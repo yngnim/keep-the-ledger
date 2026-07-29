@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  bonusStages,
   chapters,
   chronologicalStages,
   rulebookSections,
@@ -116,6 +117,65 @@ const difficulties: Record<
 
 function asset(path: string) {
   return `${BASE_PATH}${path}`;
+}
+
+function stageCode(stage: Stage) {
+  return stage.code ?? String(stage.id).padStart(2, "0");
+}
+
+function stagePages(stage: Stage) {
+  return stage.pages ?? [stage.page];
+}
+
+function stageBookLabel(stage: Stage) {
+  return stage.book === "boss" ? "보스 배틀 책자" : "던전 책자";
+}
+
+function stagePageLabel(stage: Stage) {
+  const pages = stagePages(stage);
+  return pages.length === 1
+    ? `${pages[0]}쪽`
+    : `${pages[0]}–${pages.at(-1)}쪽`;
+}
+
+function stagePageImage(stage: Stage, page = stage.page) {
+  return asset(
+    stage.book === "boss"
+      ? `/assets/boss-battle-pages/page-${String(page).padStart(2, "0")}.webp`
+      : `/assets/dungeon-pages/stage-${String(page).padStart(2, "0")}.jpg`,
+  );
+}
+
+function chapterRewardUnlocked(
+  chapter: Chapter,
+  completions: CompletionMap,
+) {
+  return chapter.rewardUnlockStageId
+    ? Boolean(completions[chapter.rewardUnlockStageId])
+    : chapter.stageIds.every((id) => completions[id]);
+}
+
+function automaticSetupItems(
+  stage: Stage,
+  completions: CompletionMap,
+) {
+  const items = [...stage.setup];
+  if (completions[24]) {
+    items.push(
+      "장치 설계도 해금: 카드 팩 G의 새 카드를 장치 카드 더미에 포함합니다.",
+    );
+  }
+  if (completions[27]) {
+    items.push(
+      "고철로봇 설계자 해금: 수호자 방이 없는 시나리오라면 고철 더미 토큰을 대장간에 놓고 장치 카드 더미를 전리품 상점 옆에 준비합니다.",
+    );
+  }
+  if (completions[33]) {
+    items.push(
+      "비밀 산타 해금: 몬스터를 고른 뒤 각자 전리품 3장 중 1장을 오른쪽 플레이어에게 뒷면으로 줍니다. 혼자라면 3장 중 1장을 가집니다.",
+    );
+  }
+  return items;
 }
 
 function freshHeroTokens(): HeroTokenState {
@@ -248,7 +308,7 @@ function FlowSteps({
 function StageIdentity({ stage }: { stage: Stage }) {
   return (
     <div className="stage-identity">
-      <span>{String(stage.id).padStart(2, "0")}</span>
+      <span>{stageCode(stage)}</span>
       <div>
         <small>시나리오</small>
         <h1>{stage.title}</h1>
@@ -337,15 +397,19 @@ function ChronicleTrack({
   editing,
   onToggleEditing,
   onToggleStage,
+  onStartStage,
   onReward,
 }: {
   completions: CompletionMap;
   editing: boolean;
   onToggleEditing: () => void;
   onToggleStage: (stageId: number) => void;
+  onStartStage: (stageId: number) => void;
   onReward: (chapter: Chapter) => void;
 }) {
-  const completeCount = Object.values(completions).filter(Boolean).length;
+  const completeCount = chronologicalStages.filter(
+    (stage) => completions[stage.id],
+  ).length;
 
   return (
     <section className="chronicle-track">
@@ -355,7 +419,7 @@ function ChronicleTrack({
           <h2>연대기 트랙</h2>
         </div>
         <div className="track-actions">
-          <span>{completeCount} / 20 완료</span>
+          <span>{completeCount} / {chronologicalStages.length} 완료</span>
           <button type="button" onClick={onToggleEditing}>
             {editing ? "수정 완료" : "수정"}
           </button>
@@ -370,62 +434,95 @@ function ChronicleTrack({
       )}
 
       <div className="chapter-list">
-        {chapters.map((chapter) => {
-          const chapterComplete = chapter.stageIds.every(
-            (id) => completions[id],
-          );
+        {chapters.map((chapter, chapterIndex) => {
+          const chapterComplete = chapterRewardUnlocked(chapter, completions);
           const chapterCount = chapter.stageIds.filter(
             (id) => completions[id],
           ).length;
+          const showSeriesHeading =
+            chapterIndex === 0 ||
+            chapters[chapterIndex - 1]?.series !== chapter.series;
 
           return (
-            <article className="chapter-line" key={chapter.id}>
-              <div className="chapter-label">
-                <span>{String(chapter.id).padStart(2, "0")}</span>
-                <div>
-                  <h3>{chapter.title}</h3>
-                  <small>{chapterCount} / 4</small>
+            <div className="chapter-group" key={chapter.id}>
+              {showSeriesHeading && chapter.series === "boss" && (
+                <div className="chapter-series-heading">
+                  <small>확장 연대기</small>
+                  <strong>보스 배틀</strong>
                 </div>
-              </div>
+              )}
+              {showSeriesHeading && chapter.series === "bonus" && (
+                <div className="chapter-series-heading bonus">
+                  <small>추가 시나리오</small>
+                  <strong>연말 특선</strong>
+                  <span>본편 진행률과 별도로 기록됩니다.</span>
+                </div>
+              )}
 
-              <div className="chapter-stages">
-                {chapter.stageIds.map((stageId, index) => {
-                  const stage = stageById[stageId];
-                  const complete = Boolean(completions[stageId]);
-                  return (
-                    <button
-                      key={stageId}
-                      type="button"
-                      className={complete ? "complete" : ""}
-                      onClick={() => editing && onToggleStage(stageId)}
-                      disabled={!editing}
-                      aria-label={`${stage.title}, ${
-                        complete ? "클리어" : "미완료"
-                      }${editing ? ", 진행도 변경" : ""}`}
-                    >
-                      <i>{complete ? "✓" : index + 1}</i>
-                      <span>{stage.title}</span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              <button
-                className={`reward-access ${chapterComplete ? "unlocked" : ""}`}
-                type="button"
-                onClick={() => chapterComplete && onReward(chapter)}
-                disabled={!chapterComplete}
-                aria-label={
-                  chapterComplete
-                    ? `해금됨 ${chapter.reward} 보기`
-                    : `${chapter.title} 해금 능력 잠김`
-                }
+              <article
+                className={`chapter-line ${chapter.bonus ? "bonus" : ""}`}
               >
-                <small>{chapterComplete ? "해금됨" : "해금 능력"}</small>
-                <strong>{chapterComplete ? chapter.reward : "???"}</strong>
-                <span>{chapterComplete ? "보기" : "잠김"}</span>
-              </button>
-            </article>
+                <div className="chapter-label">
+                  <span>{chapter.bonus ? "H" : String(chapter.id).padStart(2, "0")}</span>
+                  <div>
+                    <h3>{chapter.title}</h3>
+                    <small>
+                      {chapterCount} / {chapter.stageIds.length}
+                    </small>
+                  </div>
+                </div>
+
+                <div
+                  className={`chapter-stages count-${chapter.stageIds.length}`}
+                >
+                  {chapter.stageIds.map((stageId, index) => {
+                    const stage = stageById[stageId];
+                    const complete = Boolean(completions[stageId]);
+                    const canStart = Boolean(chapter.bonus && !editing);
+                    return (
+                      <button
+                        key={stageId}
+                        type="button"
+                        className={complete ? "complete" : ""}
+                        onClick={() => {
+                          if (editing) onToggleStage(stageId);
+                          else if (canStart) onStartStage(stageId);
+                        }}
+                        disabled={!editing && !canStart}
+                        aria-label={`${stage.title}, ${
+                          complete ? "클리어" : "미완료"
+                        }${
+                          editing
+                            ? ", 진행도 변경"
+                            : canStart
+                              ? ", 게임 시작"
+                              : ""
+                        }`}
+                      >
+                        <i>{complete ? "✓" : stage.code ?? index + 1}</i>
+                        <span>{stage.title}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <button
+                  className={`reward-access ${chapterComplete ? "unlocked" : ""}`}
+                  type="button"
+                  onClick={() => chapterComplete && onReward(chapter)}
+                  disabled={!chapterComplete}
+                  aria-label={
+                    chapterComplete
+                      ? `해금됨 ${chapter.reward} 보기`
+                      : `${chapter.title} 해금 능력 잠김`
+                  }
+                >
+                  <small>{chapterComplete ? "해금됨" : "해금 능력"}</small>
+                  <strong>{chapterComplete ? chapter.reward : "???"}</strong>
+                  <span>{chapterComplete ? "보기" : "잠김"}</span>
+                </button>
+              </article>
+            </div>
           );
         })}
       </div>
@@ -439,6 +536,7 @@ function HomeScreen({
   onMode,
   onToggleEditing,
   onToggleStage,
+  onStartStage,
   onReward,
 }: {
   state: AppState;
@@ -446,6 +544,7 @@ function HomeScreen({
   onMode: (mode: GameMode) => void;
   onToggleEditing: () => void;
   onToggleStage: (stageId: number) => void;
+  onStartStage: (stageId: number) => void;
   onReward: (chapter: Chapter) => void;
 }) {
   return (
@@ -483,6 +582,7 @@ function HomeScreen({
         editing={editing}
         onToggleEditing={onToggleEditing}
         onToggleStage={onToggleStage}
+        onStartStage={onStartStage}
         onReward={onReward}
       />
     </main>
@@ -498,6 +598,24 @@ function SelectScreen({
   onStage: (stageId: number) => void;
   onContinue: () => void;
 }) {
+  const collections = [
+    {
+      label: "기본 시나리오",
+      detail: "01–20",
+      stages: stages.filter((stage) => stage.id <= 20),
+    },
+    {
+      label: "보스 배틀",
+      detail: "21–30",
+      stages: stages.filter((stage) => stage.id >= 21 && stage.id <= 30),
+    },
+    {
+      label: "연말 특선",
+      detail: "H1–H3",
+      stages: bonusStages,
+    },
+  ];
+
   return (
     <main className="flow-page">
       <FlowSteps mode={state.mode} screen={state.screen} />
@@ -509,19 +627,29 @@ function SelectScreen({
           </div>
           <p>플레이할 시나리오 하나를 선택하세요.</p>
         </div>
-        <div className="dungeon-grid">
-          {stages.map((stage) => (
-            <button
-              key={stage.id}
-              type="button"
-              className={state.stageId === stage.id ? "selected" : ""}
-              onClick={() => onStage(stage.id)}
-              aria-pressed={state.stageId === stage.id}
-            >
-              <span>{String(stage.id).padStart(2, "0")}</span>
-              <strong>{stage.title}</strong>
-              <small>{stage.tags.join(" · ")}</small>
-            </button>
+        <div className="dungeon-collections">
+          {collections.map((collection) => (
+            <section key={collection.label} className="dungeon-collection">
+              <header>
+                <h2>{collection.label}</h2>
+                <span>{collection.detail}</span>
+              </header>
+              <div className="dungeon-grid">
+                {collection.stages.map((stage) => (
+                  <button
+                    key={stage.id}
+                    type="button"
+                    className={state.stageId === stage.id ? "selected" : ""}
+                    onClick={() => onStage(stage.id)}
+                    aria-pressed={state.stageId === stage.id}
+                  >
+                    <span>{stageCode(stage)}</span>
+                    <strong>{stage.title}</strong>
+                    <small>{stage.tags.join(" · ")}</small>
+                  </button>
+                ))}
+              </div>
+            </section>
           ))}
         </div>
       </section>
@@ -553,21 +681,25 @@ function SetupScreen({
   onPlay: () => void;
 }) {
   const stage = stageById[state.stageId];
-  const checked = state.checklist[stage.id] ?? stage.setup.map(() => false);
-  const pageImage = asset(
-    `/assets/dungeon-pages/stage-${String(stage.page).padStart(2, "0")}.jpg`,
-  );
+  const setupItems = automaticSetupItems(stage, state.completions);
+  const storedChecklist = state.checklist[stage.id];
+  const checked =
+    storedChecklist?.length === setupItems.length
+      ? storedChecklist
+      : setupItems.map(() => false);
+  const pageImage = stagePageImage(stage);
   const currentChapter = chapters.find((chapter) =>
     chapter.stageIds.includes(stage.id),
   );
+  const stageBannedClans = stage.clanBan
+    ? stage.clanBan.split(" · ")
+    : [];
   const bannedClans =
-    state.mode === "chronicle"
-      ? (currentChapter?.bannedClans ?? [])
-      : stage.clanBan
-        ? stage.clanBan.split(" · ")
-        : [];
+    state.mode === "chronicle" && currentChapter?.bannedClans.length
+      ? currentChapter.bannedClans
+      : stageBannedClans;
   const banScope =
-    state.mode === "chronicle" && currentChapter
+    state.mode === "chronicle" && currentChapter?.bannedClans.length
       ? `연대기 ${currentChapter.id}장`
       : "이 시나리오";
 
@@ -598,11 +730,11 @@ function SetupScreen({
         <aside className="booklet-card">
           <img
             src={pageImage}
-            alt={`${stage.title} 던전 책자 ${stage.page}쪽`}
+            alt={`${stage.title} ${stageBookLabel(stage)} ${stagePageLabel(stage)}`}
           />
           <div>
-            <small>던전 책자</small>
-            <strong>{stage.page}쪽</strong>
+            <small>{stageBookLabel(stage)}</small>
+            <strong>{stagePageLabel(stage)}</strong>
             <button type="button" onClick={onBooklet}>
               이미지 크게 보기
             </button>
@@ -647,7 +779,7 @@ function SetupScreen({
             </p>
           </div>
           <div className="setup-checklist">
-            {stage.setup.map((item, index) => (
+            {setupItems.map((item, index) => (
               <label key={item} className={checked[index] ? "checked" : ""}>
                 <input
                   type="checkbox"
@@ -694,12 +826,9 @@ function PlayScreen({
   onClear: () => void;
 }) {
   const stage = stageById[state.stageId];
-  const unlockedRewards =
-    state.mode === "chronicle"
-      ? chapters.filter((chapter) =>
-          chapter.stageIds.every((id) => state.completions[id]),
-        )
-      : [];
+  const unlockedRewards = chapters.filter((chapter) =>
+    chapterRewardUnlocked(chapter, state.completions),
+  );
   const noviceTokenCount = state.novicesEnabled
     ? difficulties[state.difficulty].noviceCards
     : 0;
@@ -730,7 +859,7 @@ function PlayScreen({
             <h2>기믹</h2>
           </div>
           <button type="button" onClick={onBooklet}>
-            책자 {stage.page}쪽
+            {stageBookLabel(stage)} {stagePageLabel(stage)}
           </button>
         </div>
         <div className="play-rules">
@@ -947,9 +1076,7 @@ function StagePageDialog({
   onClose: () => void;
 }) {
   if (!stage) return null;
-  const pageImage = asset(
-    `/assets/dungeon-pages/stage-${String(stage.page).padStart(2, "0")}.jpg`,
-  );
+  const pages = stagePages(stage);
 
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
@@ -957,25 +1084,37 @@ function StagePageDialog({
         className="stage-page-dialog"
         role="dialog"
         aria-modal="true"
-        aria-label={`${stage.title} 던전 책자 ${stage.page}쪽`}
+        aria-label={`${stage.title} ${stageBookLabel(stage)} ${stagePageLabel(stage)}`}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <header>
           <div>
-            <small>던전 책자 {stage.page}쪽</small>
+            <small>
+              {stageBookLabel(stage)} {stagePageLabel(stage)}
+            </small>
             <h2>{stage.title}</h2>
           </div>
-          <button type="button" onClick={onClose} aria-label="던전 책자 닫기">
+          <button type="button" onClick={onClose} aria-label="책자 닫기">
             ×
           </button>
         </header>
-        <img
-          src={pageImage}
-          alt={`${stage.title} 던전 책자 ${stage.page}쪽`}
-        />
-        <a href={pageImage} target="_blank" rel="noreferrer">
-          이미지만 새 창에서 보기
-        </a>
+        <div className="stage-page-scroll">
+          {pages.map((page) => {
+            const pageImage = stagePageImage(stage, page);
+            return (
+              <figure key={page}>
+                {pages.length > 1 && <figcaption>{page}쪽</figcaption>}
+                <img
+                  src={pageImage}
+                  alt={`${stage.title} ${stageBookLabel(stage)} ${page}쪽`}
+                />
+                <a href={pageImage} target="_blank" rel="noreferrer">
+                  {page}쪽 이미지만 새 창에서 보기
+                </a>
+              </figure>
+            );
+          })}
+        </div>
       </section>
     </div>
   );
@@ -1213,9 +1352,30 @@ export default function Home() {
         mode === "chronicle"
           ? {
               ...previous.checklist,
-              [stage.id]: stage.setup.map(() => false),
+              [stage.id]: automaticSetupItems(
+                stage,
+                previous.completions,
+              ).map(() => false),
             }
           : previous.checklist,
+      notes: "",
+    }));
+    setResumePlay(false);
+  };
+
+  const startChronicleStage = (stageId: number) => {
+    const stage = stageById[stageId];
+    update((previous) => ({
+      ...previous,
+      mode: "chronicle",
+      stageId,
+      screen: "setup",
+      checklist: {
+        ...previous.checklist,
+        [stageId]: automaticSetupItems(stage, previous.completions).map(
+          () => false,
+        ),
+      },
       notes: "",
     }));
     setResumePlay(false);
@@ -1244,7 +1404,9 @@ export default function Home() {
       screen: "setup",
       checklist: {
         ...previous.checklist,
-        [stage.id]: stage.setup.map(() => false),
+        [stage.id]: automaticSetupItems(stage, previous.completions).map(
+          () => false,
+        ),
       },
       notes: "",
     }));
@@ -1270,9 +1432,14 @@ export default function Home() {
 
   const toggleChecklist = (index: number) => {
     update((previous) => {
+      const setupItems = automaticSetupItems(
+        stageById[previous.stageId],
+        previous.completions,
+      );
       const current =
-        previous.checklist[previous.stageId] ??
-        stageById[previous.stageId].setup.map(() => false);
+        previous.checklist[previous.stageId]?.length === setupItems.length
+          ? previous.checklist[previous.stageId]
+          : setupItems.map(() => false);
       return {
         ...previous,
         checklist: {
@@ -1351,8 +1518,9 @@ export default function Home() {
       item.stageIds.includes(activeStage.id),
     );
     const nextCompletions = { ...state.completions, [activeStage.id]: true };
-    const chapterCompleted =
-      chapter?.stageIds.every((id) => nextCompletions[id]) ?? false;
+    const chapterCompleted = chapter
+      ? chapterRewardUnlocked(chapter, nextCompletions)
+      : false;
 
     update((previous) => ({
       ...previous,
@@ -1410,7 +1578,12 @@ export default function Home() {
           onToggleEditing={() => setEditingProgress((value) => !value)}
           onToggleStage={(stageId) =>
             update((previous) => {
-              const selectedIndex = chronologicalStages.findIndex(
+              const sequence = bonusStages.some(
+                (stage) => stage.id === stageId,
+              )
+                ? bonusStages
+                : chronologicalStages;
+              const selectedIndex = sequence.findIndex(
                 (stage) => stage.id === stageId,
               );
               const selectedWasComplete = Boolean(
@@ -1421,15 +1594,19 @@ export default function Home() {
                 : selectedIndex;
               return {
                 ...previous,
-                completions: Object.fromEntries(
-                  chronologicalStages.map((stage, index) => [
-                    stage.id,
-                    index <= completedThrough,
-                  ]),
-                ),
+                completions: {
+                  ...previous.completions,
+                  ...Object.fromEntries(
+                    sequence.map((stage, index) => [
+                      stage.id,
+                      index <= completedThrough,
+                    ]),
+                  ),
+                },
               };
             })
           }
+          onStartStage={startChronicleStage}
           onReward={(chapter) => {
             setRewardChapter(chapter);
             setRewardAnnouncement(false);
@@ -1494,7 +1671,9 @@ export default function Home() {
       <RewardDialog
         chapter={rewardChapter}
         unlocked={
-          rewardChapter?.stageIds.every((id) => state.completions[id]) ?? false
+          rewardChapter
+            ? chapterRewardUnlocked(rewardChapter, state.completions)
+            : false
         }
         announcement={rewardAnnouncement}
         onClose={closeReward}

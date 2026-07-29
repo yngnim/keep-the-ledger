@@ -355,6 +355,41 @@ small {
   border-top: 1px solid var(--line);
 }
 
+.chapter-group {
+  border-bottom: 1px solid var(--line);
+}
+
+.chapter-series-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 30px 0 8px;
+  color: var(--forest);
+}
+
+.chapter-series-heading small {
+  color: var(--gold);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.chapter-series-heading strong {
+  font-family: "HeirofLight", "Paperlogy", sans-serif;
+  font-size: 1.08rem;
+}
+
+.chapter-series-heading span {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.chapter-series-heading.bonus {
+  color: #8a3e35;
+}
+
 .chapter-line {
   display: grid;
   grid-template-columns: 176px minmax(0, 1fr) 146px;
@@ -362,7 +397,10 @@ small {
   align-items: center;
   min-height: 124px;
   padding: 20px 0;
-  border-bottom: 1px solid var(--line);
+}
+
+.chapter-line.bonus {
+  padding-top: 16px;
 }
 
 .chapter-label {
@@ -396,6 +434,10 @@ small {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
+}
+
+.chapter-stages.count-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .chapter-stages::before {
@@ -459,6 +501,11 @@ small {
 
 .chapter-stages button:not(:disabled):hover i {
   border-color: var(--gold);
+}
+
+.chapter-line.bonus .chapter-stages button:not(:disabled):hover i {
+  border-color: #a8473d;
+  color: #8a3e35;
 }
 
 .reward-access {
@@ -800,11 +847,35 @@ small {
   border-bottom: 1px solid var(--line-strong);
 }
 
+.dungeon-collections {
+  display: grid;
+  gap: 34px;
+  margin-top: 28px;
+}
+
+.dungeon-collection > header {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.dungeon-collection > header h2 {
+  font-size: 1rem;
+}
+
+.dungeon-collection > header span {
+  color: var(--gold);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
 .dungeon-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
-  margin-top: 22px;
+  margin-top: 12px;
 }
 
 .dungeon-grid button {
@@ -1527,9 +1598,9 @@ small {
 
 .stage-page-dialog {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  width: min(900px, 100%);
-  height: min(900px, calc(100vh - 40px));
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(1120px, 100%);
+  height: min(1040px, calc(100vh - 40px));
   overflow: hidden;
   border-radius: 18px;
   background: var(--surface);
@@ -1562,21 +1633,51 @@ small {
   cursor: pointer;
 }
 
-.stage-page-dialog > img {
-  width: 100%;
-  height: 100%;
+.stage-page-scroll {
   min-height: 0;
-  padding: 14px;
-  object-fit: contain;
+  overflow: auto;
+  background: #e9e4da;
 }
 
-.stage-page-dialog > a {
+.stage-page-scroll figure {
+  position: relative;
+  width: 100%;
+  margin: 0;
+  background: var(--surface);
+}
+
+.stage-page-scroll figure + figure {
+  margin-top: 12px;
+}
+
+.stage-page-scroll figcaption {
+  position: sticky;
+  z-index: 1;
+  top: 10px;
+  width: max-content;
+  margin: 0 0 -42px 12px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(20, 35, 27, 0.88);
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 700;
+  backdrop-filter: blur(4px);
+}
+
+.stage-page-scroll img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.stage-page-scroll a {
   display: grid;
   place-items: center;
-  min-height: 48px;
+  min-height: 44px;
   border-top: 1px solid var(--line);
   color: var(--forest);
-  font-size: 0.875rem;
+  font-size: 0.82rem;
   font-weight: 700;
   text-decoration: none;
 }
