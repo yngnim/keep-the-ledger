@@ -41,9 +41,10 @@ test("server-renders the focused Korean game launcher", async () => {
 });
 
 test("ships the real token model, persistence, rulebooks, and static export", async () => {
-  const [page, data, exportedHtml] = await Promise.all([
+  const [page, data, serviceWorker, exportedHtml] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/data.ts", import.meta.url), "utf8"),
+    readFile(new URL("../public/sw.js", import.meta.url), "utf8"),
     readFile(new URL("../out/index.html", import.meta.url), "utf8"),
   ]);
 
@@ -83,6 +84,7 @@ test("ships the real token model, persistence, rulebooks, and static export", as
   assert.match(data, /2:\s*\[\{ label: "처형인", count: 4 \}\]/);
   assert.match(data, /\{ label: "마녀 집회", count: 4 \}/);
   assert.match(data, /20:\s*\[\]/);
+  assert.match(serviceWorker, /keep-the-ledger-shell-v2/);
   assert.match(exportedHtml, /Keep the Ledger/);
 
   await Promise.all([
