@@ -1,7 +1,6 @@
 {
-  "name": "Keep the Ledger - 던전 원정 장부",
+  "name": "The Ledger",
   "short_name": "The Ledger",
-  "description": "Keep the Heroes Out 연대기와 플레이 컴패니언",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

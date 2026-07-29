@@ -30,7 +30,16 @@ test("server-renders the focused Korean game launcher", async () => {
 
   const html = await response.text();
   assert.match(html, /<html lang="ko">/i);
-  assert.match(html, /<title>Keep the Ledger \| 던전 원정 장부<\/title>/i);
+  assert.match(html, /<title>The Ledger<\/title>/i);
+  assert.match(
+    html,
+    /<meta name="robots" content="[^"]*noindex[^"]*nofollow[^"]*nocache[^"]*"/i,
+  );
+  assert.match(
+    html,
+    /<meta name="googlebot" content="[^"]*noindex[^"]*nofollow[^"]*noimageindex[^"]*"/i,
+  );
+  assert.doesNotMatch(html, /property="og:|name="twitter:/i);
   assert.match(html, /게임 시작/);
   assert.match(html, /연대기 모드/);
   assert.match(html, /커스텀 게임/);
@@ -41,13 +50,15 @@ test("server-renders the focused Korean game launcher", async () => {
 });
 
 test("ships the real token model, persistence, rulebooks, and static export", async () => {
-  const [page, data, styles, serviceWorker, exportedHtml] = await Promise.all([
-    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/data.ts", import.meta.url), "utf8"),
-    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
-    readFile(new URL("../public/sw.js", import.meta.url), "utf8"),
-    readFile(new URL("../out/index.html", import.meta.url), "utf8"),
-  ]);
+  const [page, data, styles, serviceWorker, exportedHtml, robots] =
+    await Promise.all([
+      readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+      readFile(new URL("../app/data.ts", import.meta.url), "utf8"),
+      readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+      readFile(new URL("../public/sw.js", import.meta.url), "utf8"),
+      readFile(new URL("../out/index.html", import.meta.url), "utf8"),
+      readFile(new URL("../out/robots.txt", import.meta.url), "utf8"),
+    ]);
 
   assert.match(page, /keep-the-ledger:v4/);
   assert.match(page, /keep-the-ledger:v3/);
@@ -117,8 +128,10 @@ test("ships the real token model, persistence, rulebooks, and static export", as
   assert.match(styles, /grid-template-columns:\s*190px minmax\(0,\s*1fr\)/);
   assert.match(styles, /width:\s*min\(1500px,\s*100%\)/);
   assert.match(styles, /\.rulebook-page-stage img\s*\{[^}]*width:\s*100%/s);
-  assert.match(serviceWorker, /keep-the-ledger-shell-v5/);
-  assert.match(exportedHtml, /Keep the Ledger/);
+  assert.match(serviceWorker, /keep-the-ledger-shell-v6/);
+  assert.match(exportedHtml, /<title>The Ledger<\/title>/i);
+  assert.match(exportedHtml, /name="robots" content="[^"]*noindex/i);
+  assert.equal(robots.trim(), "User-agent: *\nDisallow: /");
 
   await Promise.all([
     access(new URL("../out/rulebooks/player-rulebook.pdf", import.meta.url)),
@@ -155,6 +168,7 @@ test("ships the real token model, persistence, rulebooks, and static export", as
     access(new URL("../out/assets/heroes/novice.png", import.meta.url)),
     access(new URL("../out/assets/icons/event.png", import.meta.url)),
     access(new URL("../out/manifest.webmanifest", import.meta.url)),
+    access(new URL("../out/robots.txt", import.meta.url)),
     access(new URL("../out/sw.js", import.meta.url)),
   ]);
 });
