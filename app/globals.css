@@ -904,6 +904,7 @@ small {
 .stage-story {
   margin-top: 18px;
   color: var(--ink-soft);
+  white-space: pre-line;
 }
 
 .highlight-rule {
@@ -1360,6 +1361,7 @@ small {
   place-items: center;
   width: 46px;
   height: 46px;
+  flex: 0 0 46px;
   overflow: hidden;
   border: 2px solid white;
   border-radius: 50%;
@@ -1387,7 +1389,7 @@ small {
 .novice-token img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .extra-token-buttons {
@@ -1580,8 +1582,8 @@ small {
 }
 
 .rulebook-dialog {
-  width: min(1040px, 100%);
-  height: min(760px, calc(100vh - 40px));
+  width: min(1500px, 100%);
+  height: calc(100vh - 40px);
   overflow: hidden;
   border-radius: 18px;
   background: var(--surface);
@@ -1616,12 +1618,12 @@ small {
 
 .rulebook-body {
   display: grid;
-  grid-template-columns: 260px 1fr;
+  grid-template-columns: 190px minmax(0, 1fr);
   height: calc(100% - 78px);
 }
 
 .rulebook-body nav {
-  padding: 14px;
+  padding: 9px;
   overflow-y: auto;
   border-right: 1px solid var(--line);
 }
@@ -1631,7 +1633,7 @@ small {
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  padding: 12px;
+  padding: 10px 9px;
   border: 0;
   border-radius: 9px;
   background: transparent;
@@ -1666,14 +1668,18 @@ small {
 
 .rulebook-viewer {
   position: relative;
-  padding: 16px;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #454545;
 }
 
 .rulebook-viewer iframe {
+  display: block;
   width: 100%;
   height: 100%;
-  border: 1px solid var(--line);
-  border-radius: 10px;
+  border: 0;
   background: white;
 }
 

@@ -157,6 +157,12 @@ function eventCardCount(stage: Stage) {
   );
 }
 
+function freshNoviceTokens(difficulty: Difficulty, enabled: boolean) {
+  return enabled
+    ? Array.from({ length: difficulties[difficulty].noviceCards }, () => true)
+    : [];
+}
+
 function migrateStoredState(value: unknown): AppState {
   if (!value || typeof value !== "object") return defaultState;
   const parsed = value as Partial<AppState> & {
@@ -200,7 +206,10 @@ function migrateStoredState(value: unknown): AppState {
         : Array.from({ length: expectedEventCount }, () => true),
     noviceTokens:
       legacyWave || parsed.noviceTokens?.length !== expectedNoviceCount
-        ? Array.from({ length: expectedNoviceCount }, () => true)
+        ? freshNoviceTokens(
+            parsed.difficulty ?? defaultState.difficulty,
+            parsed.novicesEnabled !== false,
+          )
         : (parsed.noviceTokens ?? []),
   };
 }
@@ -691,12 +700,17 @@ function PlayScreen({
           chapter.stageIds.every((id) => state.completions[id]),
         )
       : [];
-  const noviceCopies = Math.floor(
-    state.noviceTokens.length / roomTokens.length,
-  );
+  const noviceTokenCount = state.novicesEnabled
+    ? difficulties[state.difficulty].noviceCards
+    : 0;
+  const noviceCopies = noviceTokenCount / roomTokens.length;
   const noviceTokenSlots = roomTokens.flatMap((token) =>
     Array.from({ length: noviceCopies }, () => token),
   );
+  const visibleNoviceTokens =
+    state.noviceTokens.length === noviceTokenCount
+      ? state.noviceTokens
+      : Array.from({ length: noviceTokenCount }, () => true);
 
   return (
     <main className="flow-page play-page">
@@ -836,14 +850,10 @@ function PlayScreen({
                 </span>
                 <div>
                   <strong>신참</strong>
-                  <small>
-                    남은 신참 카드 {state.noviceTokens.filter(Boolean).length}
-                    장 · 4종류 각각 {noviceCopies}개
-                  </small>
                 </div>
               </div>
               <div className="extra-token-buttons novice-token-buttons">
-                {state.noviceTokens.map((remaining, index) => {
+                {visibleNoviceTokens.map((remaining, index) => {
                   const token = noviceTokenSlots[index];
                   return (
                     <button
@@ -1021,7 +1031,7 @@ function RulebookDialog({
               title={`플레이어 룰북 ${page}쪽`}
               src={`${asset(
                 "/rulebooks/player-rulebook.pdf",
-              )}#page=${page}&view=FitH`}
+              )}#page=${page}&zoom=page-width&view=FitH&toolbar=0&navpanes=0`}
             />
             <a
               href={`${asset(
@@ -1182,7 +1192,19 @@ export default function Home() {
   };
 
   const setDifficulty = (difficulty: Difficulty) => {
-    update((previous) => ({ ...previous, difficulty }));
+    update((previous) => ({
+      ...previous,
+      difficulty,
+      noviceTokens: freshNoviceTokens(difficulty, previous.novicesEnabled),
+    }));
+  };
+
+  const setNovicesEnabled = (novicesEnabled: boolean) => {
+    update((previous) => ({
+      ...previous,
+      novicesEnabled,
+      noviceTokens: freshNoviceTokens(previous.difficulty, novicesEnabled),
+    }));
   };
 
   const prepareSetup = () => {
@@ -1210,10 +1232,7 @@ export default function Home() {
         () => true,
       ),
       noviceTokens: previous.novicesEnabled
-        ? Array.from(
-            { length: difficulties[previous.difficulty].noviceCards },
-            () => true,
-          )
+        ? freshNoviceTokens(previous.difficulty, true)
         : [],
       notes: "",
     }));
@@ -1261,12 +1280,34 @@ export default function Home() {
     }));
   };
 
+  const toggleNoviceToken = (index: number) => {
+    update((previous) => {
+      const expected = freshNoviceTokens(
+        previous.difficulty,
+        previous.novicesEnabled,
+      );
+      const current =
+        previous.noviceTokens.length === expected.length
+          ? previous.noviceTokens
+          : expected;
+      return {
+        ...previous,
+        noviceTokens: current.map((value, itemIndex) =>
+          itemIndex === index ? !value : value,
+        ),
+      };
+    });
+  };
+
   const resetForWaveTwo = () => {
     update((previous) => ({
       ...previous,
       heroTokens: freshHeroTokens(),
       eventTokens: previous.eventTokens.map(() => true),
-      noviceTokens: previous.noviceTokens.map(() => true),
+      noviceTokens: freshNoviceTokens(
+        previous.difficulty,
+        previous.novicesEnabled,
+      ),
     }));
   };
 
@@ -1382,9 +1423,7 @@ export default function Home() {
           state={state}
           resuming={resumePlay}
           onDifficulty={setDifficulty}
-          onNovices={(novicesEnabled) =>
-            update((previous) => ({ ...previous, novicesEnabled }))
-          }
+          onNovices={setNovicesEnabled}
           onCheck={toggleChecklist}
           onBooklet={() => setStagePageOpen(activeStage)}
           onPlay={() => {
@@ -1403,7 +1442,7 @@ export default function Home() {
           state={state}
           onHeroToken={toggleHeroToken}
           onEventToken={(index) => toggleArrayToken("eventTokens", index)}
-          onNoviceToken={(index) => toggleArrayToken("noviceTokens", index)}
+          onNoviceToken={toggleNoviceToken}
           onWaveReset={resetForWaveTwo}
           onBooklet={() => setStagePageOpen(activeStage)}
           onNotes={(notes) =>

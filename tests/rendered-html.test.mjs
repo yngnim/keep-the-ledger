@@ -41,9 +41,10 @@ test("server-renders the focused Korean game launcher", async () => {
 });
 
 test("ships the real token model, persistence, rulebooks, and static export", async () => {
-  const [page, data, serviceWorker, exportedHtml] = await Promise.all([
+  const [page, data, styles, serviceWorker, exportedHtml] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/data.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../public/sw.js", import.meta.url), "utf8"),
     readFile(new URL("../out/index.html", import.meta.url), "utf8"),
   ]);
@@ -67,11 +68,14 @@ test("ships the real token model, persistence, rulebooks, and static export", as
   assert.match(page, /noviceCards:\s*8/);
   assert.match(page, /noviceCards:\s*12/);
   assert.match(page, /침입 토큰/);
-  assert.match(page, /4종류 각각/);
+  assert.match(page, /freshNoviceTokens/);
+  assert.match(page, /noviceTokenCount/);
   assert.match(page, /noviceTokenSlots/);
+  assert.doesNotMatch(page, /남은 신참 카드/);
   assert.ok(page.indexOf("novice-row") < page.indexOf("event-row"));
   assert.match(page, /unlockedRewards/);
   assert.match(page, /큰 몬스터 → 작은 몬스터/);
+  assert.match(page, /zoom=page-width/);
   assert.match(data, /stageIds:\s*\[1,\s*4,\s*13,\s*15\]/);
   assert.match(data, /stageIds:\s*\[3,\s*9,\s*19,\s*20\]/);
   assert.match(data, /bannedClans:\s*\["도마뱀",\s*"해골"\]/);
@@ -84,6 +88,12 @@ test("ships the real token model, persistence, rulebooks, and static export", as
   assert.match(data, /2:\s*\[\{ label: "처형인", count: 4 \}\]/);
   assert.match(data, /\{ label: "마녀 집회", count: 4 \}/);
   assert.match(data, /20:\s*\[\]/);
+  assert.match(data, /강령술사가 주인이 아닌 던전을 찾는 일이라/);
+  assert.match(data, /그 이야기 알지\? 마녀가 순진한 왕자를 개구리로 만들었다는/);
+  assert.match(data, /우리의 던전은 끝나지 않았어/);
+  assert.doesNotMatch(data, /개구리 식단에 지친 마녀의 점심/);
+  assert.match(styles, /grid-template-columns:\s*190px minmax\(0,\s*1fr\)/);
+  assert.match(styles, /width:\s*min\(1500px,\s*100%\)/);
   assert.match(serviceWorker, /keep-the-ledger-shell-v2/);
   assert.match(exportedHtml, /Keep the Ledger/);
 
