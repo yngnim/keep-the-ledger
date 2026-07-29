@@ -23,8 +23,10 @@ export type Chapter = {
   title: string;
   subtitle: string;
   stageIds: number[];
+  bannedClans: string[];
   reward: string;
   rewardText: string;
+  rewardReference?: string;
 };
 
 export type ScenarioEventCard = {
@@ -70,6 +72,7 @@ export const chapters: Chapter[] = [
     title: "섬세한 요리법",
     subtitle: "솥단지에서 무덤까지",
     stageIds: [1, 4, 13, 15],
+    bannedClans: ["도마뱀", "해골"],
     reward: "건배",
     rewardText:
       "내가 포션을 해결할 때, 선택한 방의 다른 플레이어들도 같은 포션의 이익을 함께 누립니다.",
@@ -79,15 +82,19 @@ export const chapters: Chapter[] = [
     title: "강아지 키우기",
     subtitle: "처형인과 길 잃은 가족",
     stageIds: [2, 6, 11, 18],
+    bannedClans: ["드래곤", "놀"],
     reward: "목말 태우기",
     rewardText:
       "이동할 때 자신보다 작은 몬스터 한 마리를 동의하에 함께 데리고 이동할 수 있습니다.",
+    rewardReference:
+      "드래곤 > 해골 > 유령 > 놀 > 임프 > 마녀 > 도마뱀 > 슬라임 > 쥐",
   },
   {
     id: 3,
     title: "범죄의 미학",
     subtitle: "책과 도둑, 그리고 배신",
     stageIds: [5, 7, 12, 17],
+    bannedClans: ["마녀"],
     reward: "강도단",
     rewardText:
       "전술 카드 1장을 효과 없이 버리면, 같은 방의 다른 플레이어가 손의 카드 1장을 즉시 낼 수 있습니다.",
@@ -97,6 +104,7 @@ export const chapters: Chapter[] = [
     title: "던전 축제",
     subtitle: "인어의 마지막 무대",
     stageIds: [8, 10, 14, 16],
+    bannedClans: ["쥐", "폴터가이스트"],
     reward: "마음의 선물",
     rewardText:
       "활성화 행동으로 같은 방의 다른 몬스터에게 시작 카드가 아닌 전리품 카드 1장을 줄 수 있습니다.",
@@ -106,6 +114,7 @@ export const chapters: Chapter[] = [
     title: "던전 경영",
     subtitle: "임대료부터 새로운 시작까지",
     stageIds: [3, 9, 19, 20],
+    bannedClans: ["임프", "슬라임"],
     reward: "옹고집",
     rewardText:
       "이후 시나리오에서는 일반 영웅 대신 전설적인 영웅을 사용합니다. 감옥 행동의 카드 판정도 함께 바뀝니다.",

@@ -615,9 +615,9 @@ small {
 }
 
 .config-panel {
-  max-width: 760px;
-  margin: 42px auto 0;
-  padding: 28px;
+  height: 100%;
+  margin: 0;
+  padding: 26px;
   border: 1px solid var(--line);
   border-radius: 18px;
   background: var(--surface);
@@ -732,6 +732,49 @@ small {
   color: var(--muted);
 }
 
+.clan-ban {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 14px;
+  padding: 14px 16px;
+  border: 1px solid #d9c8bf;
+  border-radius: 12px;
+  background: #f5eeea;
+}
+
+.clan-ban > div:first-child {
+  display: flex;
+  flex-direction: column;
+}
+
+.clan-ban small {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.clan-ban strong {
+  margin-top: 1px;
+  font-size: 0.86rem;
+}
+
+.clan-ban-list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.clan-ban-list span {
+  padding: 5px 9px;
+  border-radius: 99px;
+  background: #843d36;
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
 .primary-action {
   display: flex;
   align-items: center;
@@ -837,17 +880,17 @@ small {
   font-weight: 600;
 }
 
-.setup-layout {
+.setup-prep-layout,
+.setup-content-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 250px;
-  gap: 22px;
-  align-items: start;
+  grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.75fr);
+  gap: 18px;
+  align-items: stretch;
   margin-top: 28px;
 }
 
-.setup-main {
-  display: grid;
-  gap: 18px;
+.setup-content-layout {
+  margin-top: 18px;
 }
 
 .plain-section,
@@ -977,8 +1020,10 @@ small {
 }
 
 .booklet-card {
-  position: sticky;
-  top: 94px;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  height: 100%;
+  min-height: 0;
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 16px;
@@ -989,7 +1034,8 @@ small {
 .booklet-card > img {
   display: block;
   width: 100%;
-  aspect-ratio: 1 / 1.25;
+  height: 100%;
+  min-height: 0;
   object-fit: cover;
   object-position: top;
 }
@@ -1057,25 +1103,84 @@ small {
   margin-top: 8px;
 }
 
+.unlocked-rewards-section .section-title > p {
+  max-width: 360px;
+  text-align: right;
+}
+
+.unlocked-reward-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.unlocked-reward-grid > article {
+  padding: 16px;
+  border: 1px solid #d8caa2;
+  border-radius: 12px;
+  background: #f8f2df;
+}
+
+.unlocked-reward-grid > article > small {
+  color: #8a6c22;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.unlocked-reward-grid h3 {
+  margin-top: 2px;
+  font-family: "HeirofLight", "Paperlogy", sans-serif;
+  font-size: 1.05rem;
+}
+
+.unlocked-reward-grid p {
+  margin-top: 7px;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+}
+
+.reward-reference {
+  margin-top: 12px;
+  padding-top: 11px;
+  border-top: 1px solid #ded0a7;
+}
+
+.reward-reference > small {
+  color: #8a6c22;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.reward-reference > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px 5px;
+  margin-top: 6px;
+}
+
+.reward-reference span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.reward-reference strong {
+  font-size: 0.74rem;
+}
+
+.reward-reference i {
+  color: #a88a42;
+  font-style: normal;
+}
+
 .invasion-section .section-title {
   padding-bottom: 20px;
   border-bottom: 1px solid var(--line);
 }
 
-.wave-controls {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.wave-controls span {
-  color: var(--forest);
-  font-size: 0.82rem;
-  font-weight: 700;
-}
-
-.wave-controls button {
+.wave-reset {
   min-height: 38px;
   padding: 0 12px;
   border: 1px solid var(--line-strong);
@@ -1219,36 +1324,33 @@ small {
 .extra-token-rows {
   display: grid;
   gap: 10px;
-  margin-top: 18px;
-  padding-top: 18px;
-  border-top: 1px solid var(--line);
+  margin-top: 10px;
 }
 
 .extra-token-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 145px minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
-  gap: 18px;
+  gap: 14px;
   min-height: 76px;
-  padding: 12px 14px;
+  padding: 12px;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--surface-soft);
 }
 
-.extra-token-row > div:first-child {
+.extra-token-name {
   display: flex;
   align-items: center;
   gap: 11px;
-  flex: 0 0 auto;
 }
 
-.extra-token-row > div:first-child > div {
+.extra-token-name > div {
   display: flex;
   flex-direction: column;
 }
 
-.extra-token-row > div:first-child small {
+.extra-token-name small {
   color: var(--muted);
   font-size: 0.75rem;
 }
@@ -1271,59 +1373,95 @@ small {
   object-fit: contain;
 }
 
+.event-token {
+  border-color: white;
+  background: #e3202f;
+  box-shadow: 0 0 0 1px #bd1724;
+}
+
+.event-token img {
+  width: 76%;
+  height: 76%;
+}
+
 .novice-token img {
-  width: 88%;
-  height: 88%;
-  object-fit: contain;
-}
-
-.small-token-list {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 7px;
-}
-
-.small-token-list button {
-  display: grid;
-  place-items: center;
-  width: 38px;
-  height: 38px;
-  padding: 5px;
-  border: 1px solid var(--line-strong);
-  border-radius: 50%;
-  background: white;
-  cursor: pointer;
-}
-
-.small-token-list button img {
   width: 100%;
   height: 100%;
+  object-fit: cover;
+}
+
+.extra-token-buttons {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.extra-token-buttons button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 48px;
+  padding: 6px 9px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  cursor: pointer;
+  transition:
+    opacity 140ms ease,
+    background 140ms ease,
+    border-color 140ms ease;
+}
+
+.extra-token-buttons button > img {
+  width: 29px;
+  height: 29px;
+  flex: 0 0 auto;
   object-fit: contain;
 }
 
-.small-token-list button.spent {
-  opacity: 0.32;
+.extra-token-buttons button > span:last-child {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.extra-token-buttons button.remaining {
+  border-color: #aebfb4;
+  background: #eef4f0;
+}
+
+.extra-token-buttons button.spent {
+  opacity: 0.38;
+  background: #e7e5de;
   filter: grayscale(1);
 }
 
-.novice-token-list button {
-  padding: 0;
-  overflow: hidden;
+.novice-token-buttons {
+  grid-template-columns: repeat(auto-fit, minmax(46px, 1fr));
 }
 
-.novice-token-list button img {
+.novice-token-buttons button {
+  flex-direction: column;
+  gap: 1px;
+  padding-inline: 4px;
+}
+
+.event-button-icon {
+  display: grid;
+  place-items: center;
+  width: 29px;
+  height: 29px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #e3202f;
+}
+
+.event-button-icon img {
+  width: 74%;
+  height: 74%;
   object-fit: contain;
-}
-
-.novice-token-list button.unused {
-  opacity: 0.22;
-  filter: grayscale(1);
-}
-
-.novice-token-list button.used {
-  border-color: var(--gold);
-  box-shadow: 0 0 0 2px var(--gold-soft);
 }
 
 .no-tokens {
@@ -1566,6 +1704,28 @@ small {
   color: var(--ink-soft);
 }
 
+.reward-dialog-reference {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 16px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--gold-soft);
+}
+
+.reward-dialog-reference small {
+  color: #8a6c22;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.reward-dialog-reference strong {
+  color: var(--ink-soft);
+  font-size: 0.76rem;
+  line-height: 1.6;
+}
+
 .reward-dialog button {
   width: 100%;
   min-height: 50px;
@@ -1689,7 +1849,6 @@ small {
   }
 
   .config-panel {
-    margin-top: 28px;
     padding: 20px;
   }
 
@@ -1723,19 +1882,20 @@ small {
     justify-content: flex-start;
   }
 
-  .setup-layout {
+  .setup-prep-layout,
+  .setup-content-layout {
     grid-template-columns: 1fr;
   }
 
   .booklet-card {
-    position: static;
-    display: grid;
     grid-template-columns: 112px 1fr;
+    grid-template-rows: 1fr;
+    height: auto;
   }
 
   .booklet-card > img {
-    height: 138px;
-    aspect-ratio: auto;
+    height: 100%;
+    min-height: 148px;
   }
 
   .booklet-card > div {
@@ -1748,10 +1908,9 @@ small {
     align-items: flex-start;
   }
 
-  .wave-controls {
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 4px;
+  .unlocked-rewards-section .section-title > p {
+    margin-top: 6px;
+    text-align: left;
   }
 
   .plain-section,
@@ -1770,12 +1929,11 @@ small {
   }
 
   .extra-token-row {
-    align-items: flex-start;
-    flex-direction: column;
+    grid-template-columns: 1fr;
   }
 
-  .small-token-list {
-    justify-content: flex-start;
+  .extra-token-buttons {
+    width: 100%;
   }
 
   .rulebook-body {
@@ -1895,6 +2053,16 @@ small {
     grid-template-columns: 1fr;
   }
 
+  .clan-ban {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .clan-ban-list {
+    justify-content: flex-start;
+  }
+
   .highlight-rule {
     grid-template-columns: 1fr;
   }
@@ -1924,6 +2092,17 @@ small {
   .hero-token-buttons img {
     width: 27px;
     height: 27px;
+  }
+
+  .novice-token-buttons {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .extra-token-buttons button {
+    flex-direction: column;
+    gap: 1px;
+    min-height: 58px;
+    padding-inline: 4px;
   }
 
   .result-actions {

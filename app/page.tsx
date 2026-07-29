@@ -31,14 +31,14 @@ type AppState = {
   heroTokens: HeroTokenState;
   eventTokens: boolean[];
   noviceTokens: boolean[];
-  wave: 1 | 2;
   notes: string;
   updatedAt: string;
 };
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
-const STORAGE_KEY = "keep-the-ledger:v3";
-const PREVIOUS_STORAGE_KEY = "keep-the-ledger:v2";
+const STORAGE_KEY = "keep-the-ledger:v4";
+const PREVIOUS_STORAGE_KEY = "keep-the-ledger:v3";
+const V2_STORAGE_KEY = "keep-the-ledger:v2";
 const LEGACY_STORAGE_KEY = "keep-the-ledger:v1";
 
 const roomTokens: Array<{
@@ -138,7 +138,6 @@ const defaultState: AppState = {
   heroTokens: freshHeroTokens(),
   eventTokens: [],
   noviceTokens: [],
-  wave: 1,
   notes: "",
   updatedAt: new Date(0).toISOString(),
 };
@@ -163,10 +162,16 @@ function migrateStoredState(value: unknown): AppState {
   const parsed = value as Partial<AppState> & {
     currentStageId?: number;
     results?: Record<number, "win" | "loss" | null>;
+    wave?: 1 | 2;
   };
+  const { wave: legacyWave, ...currentFields } = parsed;
   const storedScreen = (parsed as { screen?: string }).screen;
   const stageId = parsed.stageId ?? parsed.currentStageId ?? 1;
   const expectedEventCount = eventCardCount(stageById[stageId] ?? stageById[1]);
+  const expectedNoviceCount =
+    parsed.novicesEnabled === false
+      ? 0
+      : difficulties[parsed.difficulty ?? defaultState.difficulty].noviceCards;
   const screen: Screen =
     storedScreen === "start"
       ? "setup"
@@ -184,7 +189,7 @@ function migrateStoredState(value: unknown): AppState {
 
   return {
     ...defaultState,
-    ...parsed,
+    ...currentFields,
     screen,
     stageId,
     completions: { ...legacyCompletions, ...parsed.completions },
@@ -193,8 +198,10 @@ function migrateStoredState(value: unknown): AppState {
       parsed.eventTokens?.length === expectedEventCount
         ? parsed.eventTokens
         : Array.from({ length: expectedEventCount }, () => true),
-    noviceTokens: parsed.noviceTokens ?? [],
-    wave: parsed.wave === 2 ? 2 : 1,
+    noviceTokens:
+      legacyWave || parsed.noviceTokens?.length !== expectedNoviceCount
+        ? Array.from({ length: expectedNoviceCount }, () => true)
+        : (parsed.noviceTokens ?? []),
   };
 }
 
@@ -243,10 +250,14 @@ function StageIdentity({ stage }: { stage: Stage }) {
 
 function GameConfig({
   state,
+  bannedClans,
+  banScope,
   onDifficulty,
   onNovices,
 }: {
   state: AppState;
+  bannedClans: string[];
+  banScope: string;
   onDifficulty: (difficulty: Difficulty) => void;
   onNovices: (enabled: boolean) => void;
 }) {
@@ -294,6 +305,20 @@ function GameConfig({
           </small>
         </div>
       </label>
+
+      {bannedClans.length > 0 && (
+        <div className="clan-ban">
+          <div>
+            <small>{banScope}</small>
+            <strong>사용할 수 없는 클랜</strong>
+          </div>
+          <div className="clan-ban-list">
+            {bannedClans.map((clan) => (
+              <span key={clan}>{clan}</span>
+            ))}
+          </div>
+        </div>
+      )}
     </section>
   );
 }
@@ -330,7 +355,8 @@ function ChronicleTrack({
 
       {editing && (
         <p className="edit-notice">
-          시나리오를 눌러 클리어 여부를 직접 변경할 수 있습니다.
+          미완료 시나리오를 누르면 그 지점까지 완료됩니다. 완료된 시나리오를
+          누르면 그 시나리오부터 이후 기록이 해제됩니다.
         </p>
       )}
 
@@ -522,6 +548,19 @@ function SetupScreen({
   const pageImage = asset(
     `/assets/dungeon-pages/stage-${String(stage.page).padStart(2, "0")}.jpg`,
   );
+  const currentChapter = chapters.find((chapter) =>
+    chapter.stageIds.includes(stage.id),
+  );
+  const bannedClans =
+    state.mode === "chronicle"
+      ? (currentChapter?.bannedClans ?? [])
+      : stage.clanBan
+        ? stage.clanBan.split(" · ")
+        : [];
+  const banScope =
+    state.mode === "chronicle" && currentChapter
+      ? `연대기 ${currentChapter.id}장`
+      : "이 시나리오";
 
   return (
     <main className="flow-page">
@@ -535,68 +574,17 @@ function SetupScreen({
               ? difficulties[state.difficulty].note
               : "신참 미사용"}
           </span>
-          {stage.clanBan && <span>선택 불가: {stage.clanBan}</span>}
         </div>
       </section>
 
-      <GameConfig
-        state={state}
-        onDifficulty={onDifficulty}
-        onNovices={onNovices}
-      />
-
-      <div className="setup-layout">
-        <div className="setup-main">
-          <section className="plain-section story-section">
-            <div className="section-title compact">
-              <div>
-                <small>시나리오</small>
-                <h2>이야기와 기믹</h2>
-              </div>
-            </div>
-            <p className="stage-story">{stage.story}</p>
-            <div className="highlight-rule">
-              <small>핵심</small>
-              <strong>{stage.highlight}</strong>
-            </div>
-            <div className="rule-list">
-              {stage.rules.map((rule) => (
-                <article key={`${rule.kind}-${rule.title}`}>
-                  <span>{rule.kind}</span>
-                  <div>
-                    <h3>{rule.title}</h3>
-                    <p>{rule.text}</p>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
-
-          <section className="plain-section checklist-section">
-            <div className="section-title compact">
-              <div>
-                <small>준비</small>
-                <h2>던전 세팅</h2>
-              </div>
-              <p>
-                {checked.filter(Boolean).length} / {checked.length}
-              </p>
-            </div>
-            <div className="setup-checklist">
-              {stage.setup.map((item, index) => (
-                <label key={item} className={checked[index] ? "checked" : ""}>
-                  <input
-                    type="checkbox"
-                    checked={Boolean(checked[index])}
-                    onChange={() => onCheck(index)}
-                  />
-                  <span>{checked[index] ? "✓" : index + 1}</span>
-                  <strong>{item}</strong>
-                </label>
-              ))}
-            </div>
-          </section>
-        </div>
+      <div className="setup-prep-layout">
+        <GameConfig
+          state={state}
+          bannedClans={bannedClans}
+          banScope={banScope}
+          onDifficulty={onDifficulty}
+          onNovices={onNovices}
+        />
 
         <aside className="booklet-card">
           <img
@@ -611,6 +599,58 @@ function SetupScreen({
             </button>
           </div>
         </aside>
+      </div>
+
+      <div className="setup-content-layout">
+        <section className="plain-section story-section">
+          <div className="section-title compact">
+            <div>
+              <small>시나리오</small>
+              <h2>이야기와 기믹</h2>
+            </div>
+          </div>
+          <p className="stage-story">{stage.story}</p>
+          <div className="highlight-rule">
+            <small>핵심</small>
+            <strong>{stage.highlight}</strong>
+          </div>
+          <div className="rule-list">
+            {stage.rules.map((rule) => (
+              <article key={`${rule.kind}-${rule.title}`}>
+                <span>{rule.kind}</span>
+                <div>
+                  <h3>{rule.title}</h3>
+                  <p>{rule.text}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="plain-section checklist-section">
+          <div className="section-title compact">
+            <div>
+              <small>준비</small>
+              <h2>던전 세팅</h2>
+            </div>
+            <p>
+              {checked.filter(Boolean).length} / {checked.length}
+            </p>
+          </div>
+          <div className="setup-checklist">
+            {stage.setup.map((item, index) => (
+              <label key={item} className={checked[index] ? "checked" : ""}>
+                <input
+                  type="checkbox"
+                  checked={Boolean(checked[index])}
+                  onChange={() => onCheck(index)}
+                />
+                <span>{checked[index] ? "✓" : index + 1}</span>
+                <strong>{item}</strong>
+              </label>
+            ))}
+          </div>
+        </section>
       </div>
 
       <div className="flow-footer">
@@ -645,6 +685,18 @@ function PlayScreen({
   onClear: () => void;
 }) {
   const stage = stageById[state.stageId];
+  const unlockedRewards =
+    state.mode === "chronicle"
+      ? chapters.filter((chapter) =>
+          chapter.stageIds.every((id) => state.completions[id]),
+        )
+      : [];
+  const noviceCopies = Math.floor(
+    state.noviceTokens.length / roomTokens.length,
+  );
+  const noviceTokenSlots = roomTokens.flatMap((token) =>
+    Array.from({ length: noviceCopies }, () => token),
+  );
 
   return (
     <main className="flow-page play-page">
@@ -680,18 +732,51 @@ function PlayScreen({
         </div>
       </section>
 
+      {unlockedRewards.length > 0 && (
+        <section className="play-section unlocked-rewards-section">
+          <div className="section-title compact">
+            <div>
+              <small>CHRONICLE REWARDS</small>
+              <h2>해금 능력</h2>
+            </div>
+            <p>이번 게임에서 바로 확인할 수 있는 연대기 능력입니다.</p>
+          </div>
+          <div className="unlocked-reward-grid">
+            {unlockedRewards.map((chapter) => (
+              <article key={chapter.id}>
+                <small>{chapter.id}장 보상</small>
+                <h3>{chapter.reward}</h3>
+                <p>{chapter.rewardText}</p>
+                {chapter.rewardReference && (
+                  <div className="reward-reference">
+                    <small>큰 몬스터 → 작은 몬스터</small>
+                    <div>
+                      {chapter.rewardReference
+                        .split(" > ")
+                        .map((monster, index, items) => (
+                          <span key={monster}>
+                            <strong>{monster}</strong>
+                            {index < items.length - 1 && <i>›</i>}
+                          </span>
+                        ))}
+                    </div>
+                  </div>
+                )}
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+
       <section className="play-section invasion-section">
         <div className="section-title compact">
           <div>
             <small>UNDERGROUND MARKET</small>
             <h2>침입 토큰</h2>
           </div>
-          <div className="wave-controls">
-            <span>웨이브 {state.wave}</span>
-            <button type="button" onClick={onWaveReset}>
-              {state.wave === 1 ? "웨이브 2 시작 · 초기화" : "웨이브 2 다시 초기화"}
-            </button>
-          </div>
+          <button className="wave-reset" type="button" onClick={onWaveReset}>
+            2웨이브 초기화
+          </button>
         </div>
 
         <p className="tracker-guide">
@@ -743,20 +828,55 @@ function PlayScreen({
         </div>
 
         <div className="extra-token-rows">
+          {state.novicesEnabled && (
+            <article className="extra-token-row novice-row">
+              <div className="extra-token-name">
+                <span className="round-token novice-token">
+                  <img src={asset("/assets/heroes/novice.png")} alt="" />
+                </span>
+                <div>
+                  <strong>신참</strong>
+                  <small>
+                    남은 신참 카드 {state.noviceTokens.filter(Boolean).length}
+                    장 · 4종류 각각 {noviceCopies}개
+                  </small>
+                </div>
+              </div>
+              <div className="extra-token-buttons novice-token-buttons">
+                {state.noviceTokens.map((remaining, index) => {
+                  const token = noviceTokenSlots[index];
+                  return (
+                    <button
+                      key={`${token?.key ?? "novice"}-${index}`}
+                      type="button"
+                      className={remaining ? "remaining" : "spent"}
+                      onClick={() => onNoviceToken(index)}
+                      aria-label={`신참 ${token?.label ?? ""} 토큰 ${
+                        remaining ? "남음" : "사용됨"
+                      }`}
+                    >
+                      {token && <img src={asset(token.icon)} alt="" />}
+                      <span>{remaining ? "남음" : "사용"}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </article>
+          )}
+
           <article className="extra-token-row event-row">
-            <div>
+            <div className="extra-token-name">
               <span className="round-token event-token">
                 <img src={asset("/assets/icons/event.png")} alt="" />
               </span>
               <div>
                 <strong>이벤트</strong>
                 <small>
-                  웨이브 {state.wave} · 남은 이벤트 카드 {state.eventTokens.filter(Boolean).length}
-                  장
+                  남은 이벤트 카드 {state.eventTokens.filter(Boolean).length}장
                 </small>
               </div>
             </div>
-            <div className="small-token-list">
+            <div className="extra-token-buttons event-token-buttons">
               {state.eventTokens.length ? (
                 state.eventTokens.map((remaining, index) => (
                   <button
@@ -768,7 +888,10 @@ function PlayScreen({
                       remaining ? "남음" : "사용됨"
                     }`}
                   >
-                    <img src={asset("/assets/icons/event.png")} alt="" />
+                    <span className="event-button-icon">
+                      <img src={asset("/assets/icons/event.png")} alt="" />
+                    </span>
+                    <span>{remaining ? "남음" : "사용"}</span>
                   </button>
                 ))
               ) : (
@@ -776,53 +899,6 @@ function PlayScreen({
               )}
             </div>
           </article>
-
-          {state.novicesEnabled && (
-            <article className="extra-token-row novice-row">
-              <div>
-                <span className="round-token novice-token">
-                  <img src={asset("/assets/heroes/novice.png")} alt="" />
-                </span>
-                <div>
-                  <strong>신참</strong>
-                  <small>
-                    {state.wave === 1
-                      ? "소환할 때마다 토큰 켜기"
-                      : `남은 신참 카드 ${state.noviceTokens.filter(Boolean).length}장 · 발생할 때마다 끄기`}
-                  </small>
-                </div>
-              </div>
-              <div className="small-token-list novice-token-list">
-                {state.noviceTokens.map((used, index) => (
-                  <button
-                    key={index}
-                    type="button"
-                    className={
-                      state.wave === 1
-                        ? used
-                          ? "used"
-                          : "unused"
-                        : used
-                          ? "remaining"
-                          : "spent"
-                    }
-                    onClick={() => onNoviceToken(index)}
-                    aria-label={`신참 토큰 ${index + 1}, ${
-                      state.wave === 1
-                        ? used
-                          ? "소환됨"
-                          : "미사용"
-                        : used
-                          ? "남음"
-                          : "사용됨"
-                    }`}
-                  >
-                    <img src={asset("/assets/heroes/novice.png")} alt="" />
-                  </button>
-                ))}
-              </div>
-            </article>
-          )}
         </div>
       </section>
 
@@ -993,6 +1069,12 @@ function RewardDialog({
         </small>
         <h2>{chapter.reward}</h2>
         <p>{chapter.rewardText}</p>
+        {chapter.rewardReference && (
+          <div className="reward-dialog-reference">
+            <small>큰 몬스터 → 작은 몬스터</small>
+            <strong>{chapter.rewardReference}</strong>
+          </div>
+        )}
         <button type="button" onClick={onClose}>
           확인
         </button>
@@ -1018,6 +1100,7 @@ export default function Home() {
       const stored =
         window.localStorage.getItem(STORAGE_KEY) ??
         window.localStorage.getItem(PREVIOUS_STORAGE_KEY) ??
+        window.localStorage.getItem(V2_STORAGE_KEY) ??
         window.localStorage.getItem(LEGACY_STORAGE_KEY);
       if (stored) hydrated = migrateStoredState(JSON.parse(stored));
     } catch {
@@ -1129,10 +1212,9 @@ export default function Home() {
       noviceTokens: previous.novicesEnabled
         ? Array.from(
             { length: difficulties[previous.difficulty].noviceCards },
-            () => false,
+            () => true,
           )
         : [],
-      wave: 1,
       notes: "",
     }));
   };
@@ -1182,7 +1264,6 @@ export default function Home() {
   const resetForWaveTwo = () => {
     update((previous) => ({
       ...previous,
-      wave: 2,
       heroTokens: freshHeroTokens(),
       eventTokens: previous.eventTokens.map(() => true),
       noviceTokens: previous.noviceTokens.map(() => true),
@@ -1257,13 +1338,26 @@ export default function Home() {
           onMode={startMode}
           onToggleEditing={() => setEditingProgress((value) => !value)}
           onToggleStage={(stageId) =>
-            update((previous) => ({
-              ...previous,
-              completions: {
-                ...previous.completions,
-                [stageId]: !previous.completions[stageId],
-              },
-            }))
+            update((previous) => {
+              const selectedIndex = chronologicalStages.findIndex(
+                (stage) => stage.id === stageId,
+              );
+              const selectedWasComplete = Boolean(
+                previous.completions[stageId],
+              );
+              const completedThrough = selectedWasComplete
+                ? selectedIndex - 1
+                : selectedIndex;
+              return {
+                ...previous,
+                completions: Object.fromEntries(
+                  chronologicalStages.map((stage, index) => [
+                    stage.id,
+                    index <= completedThrough,
+                  ]),
+                ),
+              };
+            })
           }
           onReward={(chapter) => {
             setRewardChapter(chapter);

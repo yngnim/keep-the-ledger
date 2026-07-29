@@ -47,6 +47,7 @@ test("ships the real token model, persistence, rulebooks, and static export", as
     readFile(new URL("../out/index.html", import.meta.url), "utf8"),
   ]);
 
+  assert.match(page, /keep-the-ledger:v4/);
   assert.match(page, /keep-the-ledger:v3/);
   assert.match(page, /keep-the-ledger:v2/);
   assert.match(page, /keep-the-ledger:v1/);
@@ -58,14 +59,26 @@ test("ships the real token model, persistence, rulebooks, and static export", as
   assert.match(page, /freshHeroTokens/);
   assert.match(page, /heroTokens/);
   assert.match(page, /eventTokens/);
-  assert.match(page, /웨이브 2 시작 · 초기화/);
+  assert.match(page, /2웨이브 초기화/);
+  assert.doesNotMatch(page, /웨이브 2 다시 초기화|state\.wave/);
   assert.match(page, /assets\/icons\/event\.png/);
   assert.match(page, /noviceCards:\s*4/);
   assert.match(page, /noviceCards:\s*8/);
   assert.match(page, /noviceCards:\s*12/);
   assert.match(page, /침입 토큰/);
+  assert.match(page, /4종류 각각/);
+  assert.match(page, /noviceTokenSlots/);
+  assert.ok(page.indexOf("novice-row") < page.indexOf("event-row"));
+  assert.match(page, /unlockedRewards/);
+  assert.match(page, /큰 몬스터 → 작은 몬스터/);
   assert.match(data, /stageIds:\s*\[1,\s*4,\s*13,\s*15\]/);
   assert.match(data, /stageIds:\s*\[3,\s*9,\s*19,\s*20\]/);
+  assert.match(data, /bannedClans:\s*\["도마뱀",\s*"해골"\]/);
+  assert.match(data, /bannedClans:\s*\["임프",\s*"슬라임"\]/);
+  assert.match(
+    data,
+    /드래곤 > 해골 > 유령 > 놀 > 임프 > 마녀 > 도마뱀 > 슬라임 > 쥐/,
+  );
   assert.match(data, /1:\s*\[\{ label: "마녀", count: 2 \}\]/);
   assert.match(data, /2:\s*\[\{ label: "처형인", count: 4 \}\]/);
   assert.match(data, /\{ label: "마녀 집회", count: 4 \}/);
