@@ -80,6 +80,10 @@ test("ships the real token model, persistence, rulebooks, and static export", as
   assert.match(page, /freshHeroTokens/);
   assert.match(page, /heroTokens/);
   assert.match(page, /eventTokens/);
+  assert.match(page, /eventTokenGroups/);
+  assert.match(page, /event-card-groups/);
+  assert.match(page, /event-card-group/);
+  assert.doesNotMatch(page, /남은 이벤트 카드/);
   assert.match(page, /2웨이브 초기화/);
   assert.doesNotMatch(page, /웨이브 2 다시 초기화|state\.wave/);
   assert.match(page, /assets\/icons\/event\.png/);
@@ -139,7 +143,7 @@ test("ships the real token model, persistence, rulebooks, and static export", as
   assert.match(styles, /grid-template-columns:\s*190px minmax\(0,\s*1fr\)/);
   assert.match(styles, /width:\s*min\(1500px,\s*100%\)/);
   assert.match(styles, /\.rulebook-page-stage img\s*\{[^}]*width:\s*100%/s);
-  assert.match(serviceWorker, /keep-the-ledger-shell-v8/);
+  assert.match(serviceWorker, /keep-the-ledger-shell-v9/);
   assert.match(exportedHtml, /<title>The Ledger<\/title>/i);
   assert.match(exportedHtml, /name="robots" content="[^"]*noindex/i);
   assert.equal(robots.trim(), "User-agent: *\nDisallow: /");

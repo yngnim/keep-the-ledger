@@ -243,6 +243,18 @@ function eventCardCount(stage: Stage) {
   );
 }
 
+function eventTokenGroups(stage: Stage) {
+  let startIndex = 0;
+  return (stageEventCards[stage.id] ?? []).map((card) => {
+    const tokenIndexes = Array.from(
+      { length: card.count },
+      (_, index) => startIndex + index,
+    );
+    startIndex += card.count;
+    return { ...card, tokenIndexes };
+  });
+}
+
 function migrateStoredState(value: unknown): AppState {
   if (!value || typeof value !== "object") return defaultState;
   const parsed = value as Partial<AppState> & {
@@ -966,6 +978,7 @@ function PlayScreen({
     state.noviceTokens.length === noviceTokenCount
       ? state.noviceTokens
       : Array.from({ length: noviceTokenCount }, () => true);
+  const eventGroups = eventTokenGroups(stage);
 
   return (
     <main className="flow-page play-page">
@@ -1123,28 +1136,42 @@ function PlayScreen({
               </span>
               <div>
                 <strong>이벤트</strong>
-                <small>
-                  남은 이벤트 카드 {state.eventTokens.filter(Boolean).length}장
-                </small>
               </div>
             </div>
-            <div className="extra-token-buttons event-token-buttons">
-              {state.eventTokens.length ? (
-                state.eventTokens.map((remaining, index) => (
-                  <button
-                    key={index}
-                    type="button"
-                    className={remaining ? "remaining" : "spent"}
-                    onClick={() => onEventToken(index)}
-                    aria-label={`이벤트 토큰 ${index + 1}, ${
-                      remaining ? "남음" : "사용됨"
-                    }`}
+            <div className="event-card-groups">
+              {eventGroups.length ? (
+                eventGroups.map((group) => (
+                  <section
+                    className="event-card-group"
+                    key={`${group.label}-${group.tokenIndexes[0]}`}
+                    aria-label={`${group.label} 이벤트 카드`}
                   >
-                    <span className="event-button-icon">
-                      <img src={asset("/assets/icons/event.png")} alt="" />
-                    </span>
-                    <span>{remaining ? "남음" : "사용"}</span>
-                  </button>
+                    <strong>{group.label}</strong>
+                    <div className="extra-token-buttons event-token-buttons">
+                      {group.tokenIndexes.map((tokenIndex, groupIndex) => {
+                        const remaining = state.eventTokens[tokenIndex] ?? true;
+                        return (
+                          <button
+                            key={tokenIndex}
+                            type="button"
+                            className={remaining ? "remaining" : "spent"}
+                            onClick={() => onEventToken(tokenIndex)}
+                            aria-label={`${group.label} 이벤트 토큰 ${groupIndex + 1}, ${
+                              remaining ? "남음" : "사용됨"
+                            }`}
+                          >
+                            <span className="event-button-icon">
+                              <img
+                                src={asset("/assets/icons/event.png")}
+                                alt=""
+                              />
+                            </span>
+                            <span>{remaining ? "남음" : "사용"}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
                 ))
               ) : (
                 <span className="no-tokens">이벤트 카드 없음</span>

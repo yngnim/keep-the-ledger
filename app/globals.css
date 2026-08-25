@@ -1711,6 +1711,36 @@ small {
   padding-inline: 4px;
 }
 
+.event-card-groups {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.event-card-group {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.event-card-group > strong {
+  overflow: hidden;
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.event-card-group .event-token-buttons {
+  width: 100%;
+}
+
 .event-button-icon {
   display: grid;
   place-items: center;
@@ -2479,6 +2509,10 @@ small {
     width: 100%;
   }
 
+  .event-card-group {
+    grid-template-columns: 120px minmax(0, 1fr);
+  }
+
   .rulebook-body {
     grid-template-columns: 1fr;
     grid-template-rows: auto minmax(0, 1fr);
@@ -2647,6 +2681,11 @@ small {
     gap: 1px;
     min-height: 58px;
     padding-inline: 4px;
+  }
+
+  .event-card-group {
+    grid-template-columns: 1fr;
+    gap: 7px;
   }
 
   .result-actions {
