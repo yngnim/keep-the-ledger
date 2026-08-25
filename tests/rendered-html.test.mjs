@@ -98,6 +98,9 @@ test("ships the real token model, persistence, rulebooks, and static export", as
   assert.doesNotMatch(page, /남은 신참 카드/);
   assert.ok(page.indexOf("novice-row") < page.indexOf("event-row"));
   assert.match(page, /unlockedRewards/);
+  assert.match(page, /unlocked-reward-buttons/);
+  assert.doesNotMatch(page, /unlocked-reward-grid/);
+  assert.match(page, /onClick=\{\(\) => onReward\(chapter\)\}/);
   assert.match(page, /RewardSizeReference/);
   assert.match(page, /assets\/rulebook-pages\/page-/);
   assert.match(page, /rulebook-page-stage/);
@@ -136,7 +139,7 @@ test("ships the real token model, persistence, rulebooks, and static export", as
   assert.match(styles, /grid-template-columns:\s*190px minmax\(0,\s*1fr\)/);
   assert.match(styles, /width:\s*min\(1500px,\s*100%\)/);
   assert.match(styles, /\.rulebook-page-stage img\s*\{[^}]*width:\s*100%/s);
-  assert.match(serviceWorker, /keep-the-ledger-shell-v7/);
+  assert.match(serviceWorker, /keep-the-ledger-shell-v8/);
   assert.match(exportedHtml, /<title>The Ledger<\/title>/i);
   assert.match(exportedHtml, /name="robots" content="[^"]*noindex/i);
   assert.equal(robots.trim(), "User-agent: *\nDisallow: /");

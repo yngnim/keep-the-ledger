@@ -1287,45 +1287,59 @@ small {
   margin-top: 8px;
 }
 
-.unlocked-rewards-section .section-title > p {
-  max-width: 360px;
-  text-align: right;
+.unlocked-rewards-section {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 13px 16px;
 }
 
-.unlocked-reward-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 10px;
-  margin-top: 18px;
+.unlocked-rewards-section .section-title {
+  flex: 0 0 auto;
 }
 
-.unlocked-reward-grid > article {
-  padding: 16px;
+.unlocked-rewards-section .section-title small {
+  margin-bottom: 2px;
+  font-size: 0.58rem;
+}
+
+.unlocked-rewards-section .section-title h2 {
+  font-size: 1rem;
+}
+
+.unlocked-reward-buttons {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 7px;
+  min-width: 0;
+  padding-bottom: 1px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+
+.unlocked-reward-buttons button {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 0 13px;
   border: 1px solid #d8caa2;
-  border-radius: 12px;
+  border-radius: 9px;
   background: #f8f2df;
-}
-
-.unlocked-reward-grid > article.has-reference {
-  grid-column: 1 / -1;
-}
-
-.unlocked-reward-grid > article > small {
-  color: #8a6c22;
-  font-size: 0.7rem;
+  color: var(--forest);
+  font-size: 0.76rem;
   font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
 }
 
-.unlocked-reward-grid h3 {
-  margin-top: 2px;
-  font-family: "HeirofLight", "Paperlogy", sans-serif;
-  font-size: 1.05rem;
+.unlocked-reward-buttons button:hover {
+  border-color: #b89446;
+  background: #f2e7c7;
 }
 
-.unlocked-reward-grid p {
-  margin-top: 7px;
-  color: var(--ink-soft);
-  font-size: 0.82rem;
+.unlocked-reward-buttons button:focus-visible {
+  outline: 3px solid rgba(184, 148, 70, 0.28);
+  outline-offset: 2px;
 }
 
 .reward-size-reference {
@@ -2431,9 +2445,11 @@ small {
     align-items: flex-start;
   }
 
-  .unlocked-rewards-section .section-title > p {
-    margin-top: 6px;
-    text-align: left;
+  .unlocked-rewards-section {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 9px;
+    padding: 13px 14px;
   }
 
   .reward-size-grid {

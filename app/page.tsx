@@ -933,6 +933,7 @@ function PlayScreen({
   onNoviceToken,
   onWaveReset,
   onBooklet,
+  onReward,
   onNotes,
   onFail,
   onClear,
@@ -943,6 +944,7 @@ function PlayScreen({
   onNoviceToken: (index: number) => void;
   onWaveReset: () => void;
   onBooklet: () => void;
+  onReward: (chapter: Chapter) => void;
   onNotes: (notes: string) => void;
   onFail: () => void;
   onClear: () => void;
@@ -1006,21 +1008,17 @@ function PlayScreen({
               <small>CHRONICLE REWARDS</small>
               <h2>해금 능력</h2>
             </div>
-            <p>이번 게임에서 바로 확인할 수 있는 연대기 능력입니다.</p>
           </div>
-          <div className="unlocked-reward-grid">
+          <div className="unlocked-reward-buttons">
             {unlockedRewards.map((chapter) => (
-              <article
-                className={chapter.rewardReference ? "has-reference" : undefined}
+              <button
+                type="button"
                 key={chapter.id}
+                onClick={() => onReward(chapter)}
+                aria-label={`${chapter.reward} 상세 보기`}
               >
-                <small>{chapter.id}장 보상</small>
-                <h3>{chapter.reward}</h3>
-                <p>{chapter.rewardText}</p>
-                {chapter.rewardReference && (
-                  <RewardSizeReference reference={chapter.rewardReference} />
-                )}
-              </article>
+                {chapter.reward}
+              </button>
             ))}
           </div>
         </section>
@@ -2013,6 +2011,11 @@ export default function Home() {
           onNoviceToken={toggleNoviceToken}
           onWaveReset={resetForWaveTwo}
           onBooklet={() => setStagePageOpen(activeStage)}
+          onReward={(chapter) => {
+            setRewardChapter(chapter);
+            setRewardAnnouncement(false);
+            setReturnHomeAfterReward(false);
+          }}
           onNotes={(notes) =>
             update((previous) => ({ ...previous, notes }))
           }
