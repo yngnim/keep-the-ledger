@@ -98,7 +98,7 @@ test("ships the real token model, persistence, rulebooks, and static export", as
   assert.doesNotMatch(page, /남은 신참 카드/);
   assert.ok(page.indexOf("novice-row") < page.indexOf("event-row"));
   assert.match(page, /unlockedRewards/);
-  assert.match(page, /큰 몬스터 → 작은 몬스터/);
+  assert.match(page, /RewardSizeReference/);
   assert.match(page, /assets\/rulebook-pages\/page-/);
   assert.match(page, /rulebook-page-stage/);
   assert.doesNotMatch(page, /zoom=page-width|<iframe/);
@@ -113,10 +113,18 @@ test("ships the real token model, persistence, rulebooks, and static export", as
   assert.match(data, /reward:\s*"비밀 산타"/);
   assert.match(data, /bannedClans:\s*\["도마뱀",\s*"해골"\]/);
   assert.match(data, /bannedClans:\s*\["임프",\s*"슬라임"\]/);
+  assert.doesNotMatch(data, /드래곤 > 해골 > 유령/);
+  assert.match(data, /size:\s*"대형"/);
   assert.match(
     data,
-    /드래곤 > 해골 > 유령 > 놀 > 임프 > 마녀 > 도마뱀 > 슬라임 > 쥐/,
+    /monsters:\s*\["드래곤",\s*"바위 트롤",\s*"슬라임 대왕",\s*"크툴루"\]/,
   );
+  assert.match(data, /size:\s*"중형"/);
+  assert.match(data, /"고위 마녀 신시아"/);
+  assert.match(data, /size:\s*"소형"/);
+  assert.match(data, /"불꽃돌이"/);
+  assert.match(data, /대형 몬스터는 다른 몬스터에게 탑승할 수 없습니다/);
+  assert.match(data, /잠든 크툴루는 목말 태우기를 사용하거나 그 대상이 될 수 없습니다/);
   assert.match(data, /1:\s*\[\{ label: "마녀", count: 2 \}\]/);
   assert.match(data, /2:\s*\[\{ label: "처형인", count: 4 \}\]/);
   assert.match(data, /\{ label: "마녀 집회", count: 4 \}/);
@@ -128,7 +136,7 @@ test("ships the real token model, persistence, rulebooks, and static export", as
   assert.match(styles, /grid-template-columns:\s*190px minmax\(0,\s*1fr\)/);
   assert.match(styles, /width:\s*min\(1500px,\s*100%\)/);
   assert.match(styles, /\.rulebook-page-stage img\s*\{[^}]*width:\s*100%/s);
-  assert.match(serviceWorker, /keep-the-ledger-shell-v6/);
+  assert.match(serviceWorker, /keep-the-ledger-shell-v7/);
   assert.match(exportedHtml, /<title>The Ledger<\/title>/i);
   assert.match(exportedHtml, /name="robots" content="[^"]*noindex/i);
   assert.equal(robots.trim(), "User-agent: *\nDisallow: /");

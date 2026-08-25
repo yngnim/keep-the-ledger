@@ -1010,24 +1010,15 @@ function PlayScreen({
           </div>
           <div className="unlocked-reward-grid">
             {unlockedRewards.map((chapter) => (
-              <article key={chapter.id}>
+              <article
+                className={chapter.rewardReference ? "has-reference" : undefined}
+                key={chapter.id}
+              >
                 <small>{chapter.id}장 보상</small>
                 <h3>{chapter.reward}</h3>
                 <p>{chapter.rewardText}</p>
                 {chapter.rewardReference && (
-                  <div className="reward-reference">
-                    <small>큰 몬스터 → 작은 몬스터</small>
-                    <div>
-                      {chapter.rewardReference
-                        .split(" > ")
-                        .map((monster, index, items) => (
-                          <span key={monster}>
-                            <strong>{monster}</strong>
-                            {index < items.length - 1 && <i>›</i>}
-                          </span>
-                        ))}
-                    </div>
-                  </div>
+                  <RewardSizeReference reference={chapter.rewardReference} />
                 )}
               </article>
             ))}
@@ -1189,6 +1180,53 @@ function PlayScreen({
         </button>
       </div>
     </main>
+  );
+}
+
+function RewardSizeReference({
+  reference,
+  dialog = false,
+}: {
+  reference: NonNullable<Chapter["rewardReference"]>;
+  dialog?: boolean;
+}) {
+  return (
+    <div className={`reward-size-reference${dialog ? " dialog" : ""}`}>
+      <div className="reward-size-heading">
+        <small>{reference.title}</small>
+        <span>보스 배틀 개정 규칙</span>
+      </div>
+      <div className="reward-size-grid">
+        {reference.groups.map((group) => (
+          <section
+            className={`reward-size-group size-${group.size}`}
+            key={group.size}
+          >
+            <header>
+              <strong>{group.size}</strong>
+              <small>{group.carry}</small>
+            </header>
+            <div className="reward-size-monsters">
+              {group.monsters.map((monster) => (
+                <span
+                  className={monster === "크툴루" ? "cthulhu" : ""}
+                  key={monster}
+                >
+                  {monster}
+                </span>
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+      {reference.notes && (
+        <ul className="reward-size-notes">
+          {reference.notes.map((note) => (
+            <li key={note}>{note}</li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -1544,10 +1582,7 @@ function RewardDialog({
         <h2>{chapter.reward}</h2>
         <p>{chapter.rewardText}</p>
         {chapter.rewardReference && (
-          <div className="reward-dialog-reference">
-            <small>큰 몬스터 → 작은 몬스터</small>
-            <strong>{chapter.rewardReference}</strong>
-          </div>
+          <RewardSizeReference reference={chapter.rewardReference} dialog />
         )}
         <button type="button" onClick={onClose}>
           확인

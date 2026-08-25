@@ -29,10 +29,22 @@ export type Chapter = {
   bannedClans: string[];
   reward: string;
   rewardText: string;
-  rewardReference?: string;
+  rewardReference?: RewardReference;
   series?: "base" | "boss" | "bonus";
   bonus?: boolean;
   rewardUnlockStageId?: number;
+};
+
+export type RewardSizeGroup = {
+  size: "대형" | "중형" | "소형";
+  carry: string;
+  monsters: string[];
+};
+
+export type RewardReference = {
+  title: string;
+  groups: RewardSizeGroup[];
+  notes?: string[];
 };
 
 export type ScenarioEventCard = {
@@ -113,9 +125,54 @@ export const chapters: Chapter[] = [
     bannedClans: ["드래곤", "놀"],
     reward: "목말 태우기",
     rewardText:
-      "이동할 때 자신보다 작은 몬스터 한 마리를 동의하에 함께 데리고 이동할 수 있습니다.",
-    rewardReference:
-      "드래곤 > 해골 > 유령 > 놀 > 임프 > 마녀 > 도마뱀 > 슬라임 > 쥐",
+      "이동할 때 자원이나 함정 대신, 같은 크기이거나 더 작은 몬스터 1마리를 동의를 받아 함께 데리고 이동할 수 있습니다. 함께 이동하는 몬스터는 아무것도 운반할 수 없습니다.",
+    rewardReference: {
+      title: "개정 몬스터 크기표",
+      groups: [
+        {
+          size: "대형",
+          carry: "중형 · 소형 운반 가능 / 탑승 불가",
+          monsters: ["드래곤", "바위 트롤", "슬라임 대왕", "크툴루"],
+        },
+        {
+          size: "중형",
+          carry: "중형 · 소형 운반 가능",
+          monsters: [
+            "해골",
+            "폴터가이스트",
+            "놀",
+            "마녀",
+            "고르곤",
+            "늑대인간",
+            "뱀파이어",
+            "고위 마녀 신시아",
+            "사신",
+            "박쥐",
+            "유니콘",
+          ],
+        },
+        {
+          size: "소형",
+          carry: "소형 운반 가능",
+          monsters: [
+            "임프",
+            "도마뱀",
+            "슬라임",
+            "쥐",
+            "거미",
+            "버섯 부대",
+            "요정",
+            "강아지",
+            "불꽃돌이",
+          ],
+        },
+      ],
+      notes: [
+        "대형 몬스터는 다른 몬스터에게 탑승할 수 없습니다.",
+        "크툴루는 중형·소형 몬스터를 태울 수 있지만, 드래곤이나 다른 대형 몬스터는 태울 수 없습니다.",
+        "잠든 크툴루는 목말 태우기를 사용하거나 그 대상이 될 수 없습니다.",
+      ],
+    },
   },
   {
     id: 3,

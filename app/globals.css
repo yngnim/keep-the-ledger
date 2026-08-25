@@ -1306,6 +1306,10 @@ small {
   background: #f8f2df;
 }
 
+.unlocked-reward-grid > article.has-reference {
+  grid-column: 1 / -1;
+}
+
 .unlocked-reward-grid > article > small {
   color: #8a6c22;
   font-size: 0.7rem;
@@ -1324,39 +1328,99 @@ small {
   font-size: 0.82rem;
 }
 
-.reward-reference {
+.reward-size-reference {
   margin-top: 12px;
   padding-top: 11px;
   border-top: 1px solid #ded0a7;
 }
 
-.reward-reference > small {
+.reward-size-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.reward-size-heading > small {
   color: #8a6c22;
   font-size: 0.68rem;
   font-weight: 700;
 }
 
-.reward-reference > div {
+.reward-size-heading > span {
+  color: var(--muted);
+  font-size: 0.62rem;
+  font-weight: 700;
+}
+
+.reward-size-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 8px;
+}
+
+.reward-size-group {
+  padding: 9px;
+  border: 1px solid #ded3b8;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.56);
+}
+
+.reward-size-group header {
+  display: grid;
+  gap: 2px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid rgba(117, 96, 53, 0.16);
+}
+
+.reward-size-group header strong {
+  color: var(--forest);
+  font-size: 0.78rem;
+}
+
+.reward-size-group header small {
+  color: var(--muted);
+  font-size: 0.6rem;
+  line-height: 1.4;
+}
+
+.reward-size-monsters {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 3px 5px;
-  margin-top: 6px;
+  gap: 4px;
+  margin-top: 7px;
 }
 
-.reward-reference span {
-  display: flex;
-  align-items: center;
-  gap: 5px;
+.reward-size-monsters span {
+  padding: 3px 6px;
+  border: 1px solid rgba(117, 96, 53, 0.13);
+  border-radius: 999px;
+  background: #f5efe0;
+  color: var(--ink-soft);
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1.3;
 }
 
-.reward-reference strong {
-  font-size: 0.74rem;
+.reward-size-monsters .cthulhu {
+  border-color: rgba(61, 89, 78, 0.32);
+  background: #dce8e1;
+  color: var(--forest);
 }
 
-.reward-reference i {
-  color: #a88a42;
-  font-style: normal;
+.reward-size-notes {
+  margin: 8px 0 0;
+  padding: 9px 10px 9px 26px;
+  border-radius: 8px;
+  background: rgba(68, 91, 82, 0.08);
+  color: var(--ink-soft);
+  font-size: 0.66rem;
+  line-height: 1.55;
+}
+
+.reward-size-notes li + li {
+  margin-top: 3px;
 }
 
 .invasion-section .section-title {
@@ -2131,8 +2195,10 @@ small {
 }
 
 .reward-dialog {
-  width: min(460px, 100%);
+  width: min(760px, 100%);
+  max-height: calc(100vh - 40px);
   padding: 36px;
+  overflow-y: auto;
   border: 1px solid #b89549;
   border-radius: 18px;
   background: var(--surface);
@@ -2153,26 +2219,17 @@ small {
   color: var(--ink-soft);
 }
 
-.reward-dialog-reference {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-top: 16px;
-  padding: 12px;
+.reward-size-reference.dialog {
+  margin-top: 18px;
+  padding: 14px;
+  border: 0;
   border-radius: 10px;
   background: var(--gold-soft);
+  text-align: left;
 }
 
-.reward-dialog-reference small {
-  color: #8a6c22;
-  font-size: 0.7rem;
-  font-weight: 700;
-}
-
-.reward-dialog-reference strong {
-  color: var(--ink-soft);
-  font-size: 0.76rem;
-  line-height: 1.6;
+.reward-size-reference.dialog .reward-size-grid {
+  gap: 9px;
 }
 
 .reward-dialog button {
@@ -2377,6 +2434,10 @@ small {
   .unlocked-rewards-section .section-title > p {
     margin-top: 6px;
     text-align: left;
+  }
+
+  .reward-size-grid {
+    grid-template-columns: 1fr;
   }
 
   .plain-section,
@@ -2619,6 +2680,7 @@ small {
   }
 
   .reward-dialog {
+    max-height: calc(100vh - 24px);
     padding: 28px 22px;
   }
 }
